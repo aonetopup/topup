@@ -612,29 +612,59 @@ function toggleAutoRefresh(){ saveSettings(); const on=document.getElementById('
 // DATA
 // ════════════════════════════════════════════════════════════
 async function loadOrders(){
-  let orders=[];
+  let sbOrders=[];
   if(sb){
     try{
       const{data,error}=await sb.from('orders').select('*').order('created_at',{ascending:false}).limit(300);
-      if(data && !error){ orders=data; }
+      if(data && !error){ sbOrders=data; }
       else if(error){ console.warn('Supabase error:', error.message); }
     }catch(e){ console.warn('Supabase fetch error:', e); }
   }
-  // Selalu merge dengan localStorage sebagai fallback / sumber tambahan
+  // localStorage sebagai sumber kebenaran lokal — statusnya lebih fresh dari Supabase
   const local=lsGet('onetopup_log',[]);
-  const ids=new Set(orders.map(o=>o.order_id));
-  local.forEach(o=>{ if(!ids.has(o.order_id)) orders.push(o); });
+  const localMap=new Map(local.map(o=>[o.order_id,o]));
+
+  // Merge: untuk order yang ada di keduanya, pakai yang updated_at-nya lebih baru
+  const merged=new Map();
+  sbOrders.forEach(o=>merged.set(o.order_id, o));
+  local.forEach(o=>{
+    const existing=merged.get(o.order_id);
+    if(!existing){
+      merged.set(o.order_id, o); // hanya ada di lokal
+    } else {
+      // Pakai versi yang lebih baru berdasarkan updated_at
+      const sbTime=new Date(existing.updated_at||existing.created_at||0).getTime();
+      const lsTime=new Date(o.updated_at||o.created_at||0).getTime();
+      if(lsTime>sbTime) merged.set(o.order_id, o); // lokal lebih baru, prioritaskan
+    }
+  });
+
+  const orders=[...merged.values()];
   orders.sort((a,b)=>new Date(b.created_at||0)-new Date(a.created_at||0));
   allOrders=orders;
-  console.log(`✅ Loaded ${allOrders.length} orders (${orders.length-local.length>=0?orders.length-local.length:0} from Supabase, ${local.length} local)`);
+  console.log(`✅ Loaded ${allOrders.length} orders (${sbOrders.length} from Supabase, ${local.length} local, merged)`);
 }
 async function updateOrder(id,data){
   const patch={...data,updated_at:new Date().toISOString()};
-  if(sb){ try{ await sb.from('orders').update(patch).eq('order_id',id); }catch(e){} }
+  let sbOk = false;
+  if(sb){
+    try{
+      const { error } = await sb.from('orders').update(patch).eq('order_id',id);
+      if(error){ console.error('Supabase update error:', error.message); }
+      else { sbOk = true; }
+    }catch(e){ console.error('Supabase update exception:', e); }
+  }
+  // Selalu update localStorage sebagai sumber kebenaran lokal
   const log=lsGet('onetopup_log',[]); const i=log.findIndex(o=>o.order_id===id);
   if(i!==-1){ Object.assign(log[i],patch); lsSet('onetopup_log',log); }
+  else {
+    // Order mungkin hanya ada di Supabase, tambahkan ke log lokal supaya persistensi terjaga
+    const fromMem = allOrders.find(o=>o.order_id===id);
+    if(fromMem){ log.unshift({...fromMem,...patch}); lsSet('onetopup_log',log); }
+  }
   const mi=allOrders.findIndex(o=>o.order_id===id);
   if(mi!==-1) Object.assign(allOrders[mi],patch);
+  return sbOk;
 }
 
 // ════════════════════════════════════════════════════════════
@@ -818,15 +848,21 @@ function renderOrders(){
 // QUICK ACTIONS
 // ════════════════════════════════════════════════════════════
 async function markPaid(orderId){
-  // Konfirmasi = langsung Done
+  // Update in-memory dulu (optimistic UI)
   const mi=allOrders.findIndex(o=>o.order_id===orderId);
   if(mi!==-1) allOrders[mi].status='Completed';
-  renderOrders(); renderVouchers();
-  toast(`✅ Order ${orderId} dikonfirmasi & selesai!`,'ok');
+  // Simpan ke localStorage segera sebagai safety net
   const patch={status:'Completed',updated_at:new Date().toISOString()};
-  if(sb){ try{ await sb.from('orders').update(patch).eq('order_id',orderId); }catch(e){} }
   const log=lsGet('onetopup_log',[]); const li=log.findIndex(o=>o.order_id===orderId);
   if(li!==-1){ Object.assign(log[li],patch); lsSet('onetopup_log',log); }
+  else { const fromMem=allOrders.find(o=>o.order_id===orderId); if(fromMem){ log.unshift({...fromMem,...patch}); lsSet('onetopup_log',log); } }
+  renderOrders(); renderVouchers();
+  toast(`⏳ Menyimpan...`,'');
+  // Kirim ke Supabase
+  let sbOk=false;
+  if(sb){ try{ const{error}=await sb.from('orders').update(patch).eq('order_id',orderId); sbOk=!error; if(error)console.error('Supabase markPaid:',error.message); }catch(e){ console.error('Supabase markPaid exception:',e); } }
+  if(!sb||sbOk){ toast(`✅ Order ${orderId} dikonfirmasi & selesai!`,'ok'); }
+  else { toast(`⚠️ Tersimpan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
   const s=loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const o=allOrders.find(x=>x.order_id===orderId);
@@ -837,13 +873,17 @@ async function markPaid(orderId){
 async function markDone(orderId){
   const mi=allOrders.findIndex(o=>o.order_id===orderId);
   if(mi!==-1) allOrders[mi].status='Completed';
-  renderOrders();
-  renderVouchers();
-  toast(`✅ Order ${orderId} selesai!`,'ok');
+  // Simpan ke localStorage segera sebagai safety net
   const patch={status:'Completed',updated_at:new Date().toISOString()};
-  if(sb){ try{ await sb.from('orders').update(patch).eq('order_id',orderId); }catch(e){} }
   const log=lsGet('onetopup_log',[]); const i=log.findIndex(o=>o.order_id===orderId);
   if(i!==-1){ Object.assign(log[i],patch); lsSet('onetopup_log',log); }
+  else { const fromMem=allOrders.find(o=>o.order_id===orderId); if(fromMem){ log.unshift({...fromMem,...patch}); lsSet('onetopup_log',log); } }
+  renderOrders(); renderVouchers();
+  toast(`⏳ Menyimpan...`,'');
+  let sbOk=false;
+  if(sb){ try{ const{error}=await sb.from('orders').update(patch).eq('order_id',orderId); sbOk=!error; if(error)console.error('Supabase markDone:',error.message); }catch(e){ console.error('Supabase markDone exception:',e); } }
+  if(!sb||sbOk){ toast(`✅ Order ${orderId} selesai!`,'ok'); }
+  else { toast(`⚠️ Tersimpan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
   const s=loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const o=allOrders.find(x=>x.order_id===orderId);
@@ -854,12 +894,16 @@ async function markDone(orderId){
 async function cancelOrder(orderId){
   const mi=allOrders.findIndex(o=>o.order_id===orderId);
   if(mi!==-1) allOrders[mi].status='Cancelled';
-  renderOrders(); renderVouchers();
-  toast(`🚫 Order ${orderId} dibatalkan.`,'err');
   const patch={status:'Cancelled',updated_at:new Date().toISOString()};
-  if(sb){ try{ await sb.from('orders').update(patch).eq('order_id',orderId); }catch(e){} }
+  // Simpan ke localStorage segera
   const log=lsGet('onetopup_log',[]); const li=log.findIndex(o=>o.order_id===orderId);
   if(li!==-1){ Object.assign(log[li],patch); lsSet('onetopup_log',log); }
+  else { const fromMem=allOrders.find(o=>o.order_id===orderId); if(fromMem){ log.unshift({...fromMem,...patch}); lsSet('onetopup_log',log); } }
+  renderOrders(); renderVouchers();
+  let sbOk=false;
+  if(sb){ try{ const{error}=await sb.from('orders').update(patch).eq('order_id',orderId); sbOk=!error; }catch(e){} }
+  if(!sb||sbOk){ toast(`🚫 Order ${orderId} dibatalkan.`,'err'); }
+  else { toast(`⚠️ Dibatalkan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
   const s=loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const o=allOrders.find(x=>x.order_id===orderId);

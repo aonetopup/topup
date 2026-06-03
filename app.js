@@ -489,15 +489,15 @@ function formatDate(isoString) {
 // ────────────────────────────────────────────────────────────
 function switchGame(g) {
   S = { game:g, pkg:null, step:1, pay:null };
-  document.querySelectorAll('.game-card').forEach(c => c.classList.remove('active'));
-  document.getElementById('gtab-'+g).classList.add('active');
   const gd = GAMES[g];
-  document.getElementById('game-banner').className = 'game-banner ' + gd.bannerClass;
-  document.getElementById('banner-deco').textContent  = gd.icon;
-  document.getElementById('banner-title').textContent = gd.name;
-  document.getElementById('banner-sub').textContent   = gd.sub;
-  document.getElementById('banner-tag').textContent   = gd.icon + ' ' + gd.unit;
-  document.getElementById('pkg-label').textContent    = 'Pilih Nominal ' + gd.unit;
+  const banner = document.getElementById('game-banner');
+  if(banner) banner.className = 'game-banner ' + gd.bannerClass;
+  const bannerImg = document.getElementById('banner-img');
+  if(bannerImg){ bannerImg.src = g==='ff' ? 'ff.jpg' : 'mlbb.jpg'; bannerImg.alt = gd.name; }
+  const bTitle = document.getElementById('banner-title'); if(bTitle) bTitle.textContent = gd.name;
+  const bSub   = document.getElementById('banner-sub');   if(bSub)   bSub.textContent   = gd.sub;
+  const bTag   = document.getElementById('banner-tag');   if(bTag)   bTag.textContent   = gd.icon + ' ' + gd.unit;
+  const pkgLbl = document.getElementById('pkg-label');    if(pkgLbl) pkgLbl.textContent  = 'Pilih Nominal ' + gd.unit;
   renderPkgs(); gotoStep(1);
 }
 
@@ -511,9 +511,9 @@ function renderPkgs() {
       <div class="pkg-amt">${fmtN(p.amt)}</div>
       <div class="pkg-unit">${gd.unit}</div>
       <div class="pkg-price">
-        ${p.discount ? `<div class="pkg-disc-wrap">
-          <span class="pkg-orig">${fmt(Math.round(p.price/(1-p.discount/100)))}</span>
-          <span class="pkg-disc-badge">-${p.discount}%</span>
+        ${(p.disc||p.discount) ? `<div class="pkg-disc-wrap">
+          <span class="pkg-orig">${fmt(Math.round(p.price/(1-(p.disc||p.discount)/100)))}</span>
+          <span class="pkg-disc-badge">-${p.disc||p.discount}%</span>
         </div>` : ''}
         ${fmt(p.price)}
       </div>
@@ -531,8 +531,8 @@ function pickPkg(id) {
     <div class="spd-l"><div class="spd-ico">${gd.icon}</div>
       <div><div class="spd-lbl">${gd.name}</div><div class="spd-val">${fmtN(S.pkg.amt)} ${gd.unit}</div></div>
     </div><div class="spd-price">${fmt(S.pkg.price)}</div>`;
-  if (window.innerWidth < 900)
-    document.querySelector('.right-col').scrollIntoView({behavior:'smooth',block:'start'});
+  // scroll to order box
+  const ob = document.getElementById('fs1'); if(ob) ob.scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 
 // ────────────────────────────────────────────────────────────
@@ -557,10 +557,13 @@ function gotoStep(n) {
   if (n===3) renderPayList();
   S.step = n;
   for(let i=1;i<=4;i++){
-    document.getElementById('fs'+i).style.display = i===n ? 'block' : 'none';
+    const panel = document.getElementById('fs'+i);
+    if(panel){ panel.style.display = i===n ? 'block' : 'none'; }
     const si = document.getElementById('si'+i);
-    si.className = 'sbi' + (i<n?' done':i===n?' active':'');
-    si.querySelector('.sbi-dot').textContent = i<n ? '✓' : i;
+    if(si){
+      si.className = 'sbi' + (i<n?' done':i===n?' active':'');
+      si.querySelector('.sbi-dot').textContent = i<n ? '✓' : i;
+    }
   }
 }
 
@@ -593,7 +596,7 @@ function selectPay(id) {
     document.getElementById('rk-total').textContent  = fmt(S.pkg.price);
     document.getElementById('rk-copy').onclick = () => copyText(r.number, r.label+' disalin!');
   }
-  document.getElementById('rek-box').classList.add('show');
+  document.getElementById('rek-box').style.display = 'block';
 
   // Tampilkan section upload bukti bayar
   document.getElementById('upload-bukti-wrap').style.display = 'block';
@@ -979,14 +982,14 @@ function resetOrder() {
   S = { game:S.game, pkg:null, step:1, pay:null };
   buktiBayarFile = null;
   ['in-id','in-wa','in-nick'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('rek-box').classList.remove('show');
+  document.getElementById('rek-box').style.display = 'none';
   document.getElementById('upload-bukti-wrap').style.display = 'none';
   document.getElementById('ub-preview-wrap').style.display = 'none';
   document.getElementById('ub-dropzone').style.display = 'flex';
   document.getElementById('ub-status').style.display = 'none';
   document.getElementById('btn1').disabled = true;
   document.getElementById('btn-confirm').disabled = true;
-  document.getElementById('spd1').innerHTML = '<span class="spd-ph">← Pilih nominal di sebelah kiri</span>';
+  document.getElementById('spd1').innerHTML = '<span class="spd-ph">← Pilih nominal di atas</span>';
   renderPkgs(); gotoStep(1);
 }
 
@@ -1003,18 +1006,22 @@ function copyText(t, m) {
 
 function toast(msg, err=false) {
   const t = document.getElementById('toast');
+  if(!t) return;
   t.textContent = msg;
-  t.className = 'toast show' + (err ? ' err' : '');
-  setTimeout(() => t.classList.remove('show'), 2500);
+  t.className = 'toast' + (err ? ' err' : '');
+  t.style.display = 'block';
+  setTimeout(() => { t.style.display = 'none'; }, 2500);
 }
 
 function showLoading(txt) {
+  const el = document.getElementById('loading');
   document.getElementById('loading-text').textContent = txt;
-  document.getElementById('loading').classList.add('show');
+  if(el) el.style.display = 'flex';
 }
 
 function hideLoading() {
-  document.getElementById('loading').classList.remove('show');
+  const el = document.getElementById('loading');
+  if(el) el.style.display = 'none';
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1050,7 +1057,7 @@ function promoCheckout(game, pkgId) {
   if (!pkg) return;
   setTimeout(() => {
     pickPkg(pkgId);
-    document.querySelector('.right-col').scrollIntoView({behavior:'smooth',block:'start'});
+    const ob2 = document.getElementById('view-order'); if(ob2) ob2.scrollIntoView({behavior:'smooth',block:'start'});
     setTimeout(() => gotoStep(2), 400);
   }, 100);
 }
@@ -1070,5 +1077,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // ────────────────────────────────────────────────────────────
 // INIT
 // ────────────────────────────────────────────────────────────
-renderPkgs();
-renderPromos();
+// Init on DOMContentLoaded
+if(document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => { renderPkgs(); renderPromos(); });
+} else {
+  renderPkgs(); renderPromos();
+}

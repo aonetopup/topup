@@ -1189,8 +1189,21 @@ function renderPkgList(){
   if(cnt) cnt.textContent = pkgs.length;
   if(!pkgs.length){ el.innerHTML='<div class="empty" style="padding:12px"><div class="empty-ico">📭</div>Belum ada paket</div>'; return; }
   const fmt2 = n => 'Rp ' + parseInt(n).toLocaleString('id-ID');
-  el.innerHTML = pkgs.map((p,i) => `
-    <div class="pkg-item-row">
+  const isML = currentPkgTab === 'ml';
+  const SEP_AFTER = 24; // ML: pisahkan setelah diamond 24
+  let html = '';
+  let sepInserted = false;
+  pkgs.forEach((p, i) => {
+    // Untuk tab ML: sisipkan separator setelah baris dengan amt <= 24, sebelum amt >= 59
+    if(isML && !sepInserted && i > 0 && parseInt(pkgs[i-1].amt) <= SEP_AFTER && parseInt(p.amt) >= 59){
+      html += `<div style="display:flex;align-items:center;gap:8px;margin:6px 0">
+        <div style="flex:1;height:1.5px;background:linear-gradient(to right,transparent,rgba(21,101,192,0.35),transparent)"></div>
+        <span style="font-size:0.6rem;font-weight:700;color:var(--primary2);background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:20px;padding:2px 10px;white-space:nowrap">— Weekly Diamond —</span>
+        <div style="flex:1;height:1.5px;background:linear-gradient(to right,transparent,rgba(21,101,192,0.35),transparent)"></div>
+      </div>`;
+      sepInserted = true;
+    }
+    html += `<div class="pkg-item-row">
       <div class="pir-amt">${parseInt(p.amt).toLocaleString('id-ID')} 💎</div>
       <div class="pir-price">${fmt2(p.price)}</div>
       ${p.bonus ? `<span class="pir-bonus">${p.bonus}</span>` : ''}
@@ -1200,7 +1213,9 @@ function renderPkgList(){
         <button class="pir-edit" onclick="editPkgItem(${i})">✏️ Edit</button>
         <button class="pir-del" onclick="deletePkgItem(${i})">🗑️</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  });
+  el.innerHTML = html;
 }
 
 function savePkgItem(){

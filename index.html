@@ -308,6 +308,16 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
 @keyframes fadeSlideUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
 .gs-card{animation:fadeSlideUp .35s ease both}
 .gs-card:nth-child(2){animation-delay:.1s}
+
+/* NAV BRAND REFINED */
+.nav-brand-text{display:flex;flex-direction:column;line-height:1}
+.nav-brand-name{font-family:'Rajdhani',sans-serif;font-size:1.05rem;font-weight:800;letter-spacing:.5px}
+.nav-brand-name em{color:var(--primary);font-style:normal}
+.nav-brand-sub{font-size:0.55rem;font-weight:600;color:var(--text3);letter-spacing:.5px;margin-top:1px}
+
+/* NAV RIGHT — trust badges pindah ke hero */
+.hero-trust{display:flex;justify-content:center;gap:8px;margin-top:10px;flex-wrap:wrap}
+.hero-badge{font-size:0.65rem;font-weight:700;padding:4px 10px;border-radius:20px;background:rgba(255,255,255,0.18);color:#fff;border:1px solid rgba(255,255,255,0.3);backdrop-filter:blur(4px)}
 </style>
 </head>
 <body>
@@ -321,16 +331,8 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
 <nav class="topnav">
   <a href="#" class="nav-logo" onclick="showLanding();return false">
     <img src="logo.jpg" alt="ONE TopUp Logo">
-    <span><em>ONE</em> TopUp</span>
+    <div class="nav-brand-text"><span class="nav-brand-name"><em>ONE</em> TopUp</span><span class="nav-brand-sub">Top Up Game</span></div>
   </a>
-  <div class="nav-links">
-    <a href="#" class="nav-link active" onclick="showLanding();return false">Beranda</a>
-    <a href="#" class="nav-link" onclick="document.getElementById('promo-section-landing')&&document.getElementById('promo-section-landing').scrollIntoView({behavior:'smooth'});return false">Promo</a>
-  </div>
-  <div class="nav-right">
-    <span class="nav-badge nb-g">✓ No Ban</span>
-    <span class="nav-badge nb-b">⚡ 1–5 Menit</span>
-  </div>
 </nav>
 
 <!-- ══════════ LANDING VIEW ══════════ -->
@@ -342,6 +344,12 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
     </div>
     <div class="hero-title">Top Up <span>Diamond</span> Murah</div>
     <div class="hero-sub">Pilih game favoritmu dan isi diamond sekarang ✨</div>
+    <div class="hero-trust">
+      <span class="hero-badge">✓ No Ban</span>
+      <span class="hero-badge">⚡ 1–5 Menit</span>
+      <span class="hero-badge">🛡️ Aman</span>
+      <span class="hero-badge">📞 CS 24 Jam</span>
+    </div>
   </div>
 
   <div class="game-selector">
@@ -369,13 +377,6 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
       </div>
 
     </div>
-  </div>
-
-  <div class="trust-row">
-    <div class="trust-chip">🛡️ Aman &amp; Legal</div>
-    <div class="trust-chip">⚡ 1–5 Menit</div>
-    <div class="trust-chip">📞 CS 24 Jam</div>
-    <div class="trust-chip">🚫 Anti Ban</div>
   </div>
 
   <div class="redeem-section" id="redeem-section-landing">

@@ -13,7 +13,7 @@ const CFG = {
   tgChatId:    '1373603810',
   adminWA:     '6281239515295',
   adminTG:     'onetopup02',
-  qrisImage:   'https://i.ibb.co/Wv47wGB9/qr-ID1026524066705-24-05-26-1779608209-1779608209749.jpg',
+  qrisImage:   'qris.jpg',
   rekening: {
     'QRIS':      { label:'QRIS — Scan & Pay', number:'ID1026524066705',  holder:'One Top-up' },
     'DANA':      { label:'DANA',              number:'081938282686',     holder:'Taufan Pebriawan' },

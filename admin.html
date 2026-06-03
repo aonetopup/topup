@@ -288,6 +288,13 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 .login-expired.show{display:block;}
 @keyframes shake{0%,100%{transform:none}20%,60%{transform:translateX(-6px)}40%,80%{transform:translateX(6px)}}
 .do-shake{animation:shake .35s ease;}
+
+/* VOUCHER AMT SELECTOR */
+.amt-chip{font-size:0.68rem;font-weight:700;padding:4px 12px;border-radius:20px;border:1.5px solid var(--border2);color:var(--text2);background:var(--bg3);cursor:pointer;transition:all .15s;white-space:nowrap}
+.amt-chip:hover{border-color:var(--border2);color:var(--text)}
+.amt-chip.on{background:var(--primary3);border-color:rgba(59,130,246,0.5);color:var(--primary2)}
+/* VOUCHER GROUP SEPARATOR */
+.vgroup-header{font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;padding:6px 10px;border-radius:6px;background:var(--bg3);border:1px solid var(--border);color:var(--text3);margin:8px 0 5px;display:flex;align-items:center;gap:6px}
 </style>
 </head>
 <body>
@@ -406,7 +413,16 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
           <button class="vtab ml" id="vtab-ml" onclick="switchVTab('ml')">⚔️ ML Bang Bang <span class="vgbadge vgml" id="vt-ml">0</span></button>
         </div>
         <textarea class="vtxt" id="v-input" placeholder="SQ4U0RU8XCY4M8SP&#10;AB1CD2EF3GH4I5JK&#10;..."></textarea>
-        <div style="display:flex;gap:7px;margin:9px 0 12px">
+        <div style="margin:8px 0 10px">
+          <div style="font-size:0.68rem;font-weight:700;color:var(--text2);margin-bottom:5px">Jumlah Diamond per Voucher <span style="color:var(--red)">*</span></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap" id="amt-selector"></div>
+          <div style="display:flex;align-items:center;gap:6px;margin-top:7px">
+            <span style="font-size:0.68rem;color:var(--text3)">Atau isi sendiri:</span>
+            <input id="v-amt-custom" type="number" min="1" placeholder="mis. 85" style="width:80px;background:var(--bg3);border:1px solid var(--border2);color:var(--text);border-radius:6px;padding:4px 8px;font-size:0.75rem;font-family:inherit;outline:none">
+            <span style="font-size:0.68rem;color:var(--text3)">Diamond</span>
+          </div>
+        </div>
+        <div style="display:flex;gap:7px;margin:0 0 12px">
           <button class="vadd-btn" onclick="addVouchers()">+ Tambah Stok</button>
           <button class="tbtn" onclick="clearUsedVouchers()">🗑️ Hapus Terpakai</button>
         </div>
@@ -681,18 +697,30 @@ function addVouchers(){
   if(!raw){ toast('Masukkan kode voucher dulu!','err'); return; }
   const codes=raw.split(/[\n,;\s]+/).map(c=>c.trim().toUpperCase()).filter(c=>c.length>=8);
   if(!codes.length){ toast('Format kode tidak valid!','err'); return; }
+  // Ambil amt dari selector atau input manual
+  const selBtn=document.querySelector('.amt-chip.on');
+  const customAmt=parseInt(document.getElementById('v-amt-custom').value)||0;
+  const amt=customAmt||(selBtn?parseInt(selBtn.dataset.amt):0);
+  if(!amt){ toast('Pilih jumlah diamond dulu!','err'); return; }
   const existing=loadVF(currentVTab);
   const existSet=new Set(existing.map(v=>v.code));
   let added=0;
-  codes.forEach(code=>{ if(!existSet.has(code)){ existing.push({code,game:currentVTab,status:'available',addedAt:new Date().toISOString(),usedBy:null}); added++; } });
+  codes.forEach(code=>{ if(!existSet.has(code)){ existing.push({code,game:currentVTab,amt,status:'available',addedAt:new Date().toISOString(),usedBy:null}); added++; } });
   saveVF(currentVTab,existing);
   document.getElementById('v-input').value='';
+  document.getElementById('v-amt-custom').value='';
+  document.querySelectorAll('.amt-chip').forEach(c=>c.classList.remove('on'));
   renderVouchers();
-  toast(`✅ ${added} kode ${currentVTab==='ff'?'Free Fire':'ML'} ditambahkan!`,'ok');
+  toast(`✅ ${added} kode ${currentVTab==='ff'?'Free Fire':'ML'} (${amt} 💎) ditambahkan!`,'ok');
 }
 function getVoucherFor(order){
   const g=(order.game||'').toLowerCase().includes('mobile')||(order.game||'').toLowerCase().includes('ml')?'ml':'ff';
-  return{ voucher: loadVF(g).find(v=>v.status==='available')||null, game:g };
+  const allV=loadVF(g);
+  const orderAmt=parseInt(order.amt)||0;
+  // Prioritas: voucher dengan amt yang cocok, kalau tidak ada ambil yang tersedia
+  const byAmt=allV.find(v=>v.status==='available'&&parseInt(v.amt||0)===orderAmt);
+  const anyAvail=allV.find(v=>v.status==='available');
+  return{ voucher: byAmt||anyAvail||null, game:g };
 }
 function markVUsed(code,orderId,game){
   const gs=game?[game]:['ff','ml'];
@@ -721,15 +749,53 @@ function renderVouchers(){
   const gl=currentVTab==='ff'?'🔥 FF':'⚔️ ML';
   const bc=currentVTab==='ff'?'vgff':'vgml';
   const vlist=document.getElementById('vlist');
+
+  // Rebuild amt-selector chips based on active pkgs
+  const amtSel=document.getElementById('amt-selector');
+  if(amtSel){
+    const pkgs=getActivePkgs(currentVTab);
+    const amts=[...new Set(pkgs.map(p=>parseInt(p.amt)))].sort((a,b)=>a-b);
+    if(!amts.length && currentVTab==='ml') amts.push(24,59);
+    if(!amts.length && currentVTab==='ff') amts.push(70,140,355);
+    amtSel.innerHTML=amts.map(a=>`<button class="amt-chip" data-amt="${a}" onclick="selectAmtChip(this)">${a} 💎</button>`).join('');
+  }
+
   if(!cur.length){ vlist.innerHTML=`<div class="empty" style="padding:12px"><div class="empty-ico">📭</div>Belum ada voucher ${gl}</div>`; return; }
-  const sorted=[...cur].sort((a,b)=>a.status===b.status?0:a.status==='available'?-1:1);
-  vlist.innerHTML=sorted.map(v=>`
-    <div class="vitem">
-      <span class="vgbadge ${bc}">${gl}</span>
-      <div class="vcode">${v.code}</div>
-      ${v.status==='available'?'<span class="vbadge vb-av">✓ Ada</span>':`<span class="vbadge vb-us">Terpakai</span>`}
-      ${v.status!=='used'?`<button class="vdel" onclick="deleteVoucher('${v.code}','${currentVTab}')">✕</button>`:''}
-    </div>`).join('');
+
+  const sorted=[...cur].sort((a,b)=>{
+    // Sort by amt asc, then available first
+    const da=(a.amt||0)-(b.amt||0);
+    if(da!==0)return da;
+    return a.status===b.status?0:a.status==='available'?-1:1;
+  });
+
+  // Group by amt
+  const groups={};
+  sorted.forEach(v=>{ const key=v.amt?v.amt+'💎':'Lainnya'; if(!groups[key])groups[key]=[]; groups[key].push(v); });
+  const groupKeys=Object.keys(groups).sort((a,b)=>{ const na=parseInt(a)||0, nb=parseInt(b)||0; return na-nb; });
+
+  const useGroups=groupKeys.length>1;
+  let html='';
+  groupKeys.forEach(key=>{
+    if(useGroups){
+      const avCount=groups[key].filter(v=>v.status==='available').length;
+      html+=`<div class="vgroup-header">💎 ${key.replace('💎',' Diamond')} <span style="margin-left:auto;font-size:0.6rem;color:var(--green2)">✓ ${avCount} tersedia</span></div>`;
+    }
+    groups[key].forEach(v=>{
+      html+=`<div class="vitem">
+        <span class="vgbadge ${bc}">${gl}</span>
+        <div class="vcode">${v.code}</div>
+        ${v.status==='available'?'<span class="vbadge vb-av">✓ Ada</span>':`<span class="vbadge vb-us">Terpakai</span>`}
+        ${v.status!=='used'?`<button class="vdel" onclick="deleteVoucher('${v.code}','${currentVTab}')">✕</button>`:''}
+      </div>`;
+    });
+  });
+  vlist.innerHTML=html;
+}
+function selectAmtChip(btn){
+  document.querySelectorAll('.amt-chip').forEach(c=>c.classList.remove('on'));
+  btn.classList.add('on');
+  document.getElementById('v-amt-custom').value='';
 }
 
 // ════════════════════════════════════════════════════════════

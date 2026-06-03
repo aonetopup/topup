@@ -84,7 +84,7 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans
 .gs-card.ff:hover{border-color:var(--ff-color);box-shadow:0 10px 32px rgba(230,57,0,0.25)}
 .gs-card.ml:hover{border-color:var(--ml-color);box-shadow:0 10px 32px rgba(21,101,192,0.3)}
 
-.gs-card-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center 20%;transition:transform .4s}
+.gs-card-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:center center;transition:transform .4s}
 .gs-card:hover .gs-card-img{transform:scale(1.04)}
 .gs-card-overlay{position:absolute;inset:0}
 .gs-card-overlay.ff-glow{background:linear-gradient(to right,rgba(0,0,0,0.72) 0%,rgba(180,40,0,0.35) 60%,transparent 100%)}
@@ -141,7 +141,7 @@ body{background:var(--bg);color:var(--text);font-family:'Plus Jakarta Sans',sans
 
 /* GAME BANNER — LANDSCAPE in order view */
 .game-banner{border-radius:var(--radius);margin:0 16px 16px;overflow:hidden;position:relative;aspect-ratio:16/6;box-shadow:var(--shadow-md)}
-.game-banner img{width:100%;height:100%;object-fit:cover;object-position:center 22%;display:block}
+.game-banner img{width:100%;height:100%;object-fit:cover;object-position:center center;display:block}
 .game-banner-overlay{position:absolute;inset:0;display:flex;align-items:flex-end;padding:14px 16px}
 .banner-ff .game-banner-overlay{background:linear-gradient(to right,rgba(0,0,0,0.7) 0%,rgba(180,40,0,0.3) 65%,transparent 100%)}
 .banner-ml .game-banner-overlay{background:linear-gradient(to right,rgba(0,0,30,0.75) 0%,rgba(21,101,192,0.3) 65%,transparent 100%)}
@@ -330,7 +330,7 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
 <!-- NAV -->
 <nav class="topnav">
   <a href="#" class="nav-logo" onclick="showLanding();return false">
-    <img src="logo.jpg" alt="ONE TopUp Logo">
+    <img src="logo.png" alt="ONE TopUp Logo">
     <div class="nav-brand-text"><span class="nav-brand-name"><em>ONE</em> TopUp</span><span class="nav-brand-sub">Top Up Game</span></div>
   </a>
 </nav>
@@ -339,9 +339,6 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
 <div id="view-landing">
 
   <div class="hero-landing">
-    <div class="hero-brand">
-      <img src="logo.jpg" alt="ONE TopUp">
-    </div>
     <div class="hero-title">Top Up <span>Diamond</span> Murah</div>
     <div class="hero-sub">Pilih game favoritmu dan isi diamond sekarang ✨</div>
     <div class="hero-trust">
@@ -419,8 +416,7 @@ footer p{font-size:0.68rem;color:var(--text3);margin-top:2px}
     </ul></div>
     <div class="icontent" id="tt"><ul class="ilist">
       <li><div class="il-icon">🏪</div><div><div class="il-title">ONE TopUp</div><div class="il-desc">Toko top up game terpercaya untuk Free Fire &amp; Mobile Legends</div></div></li>
-      <li><div class="il-icon">📍</div><div><div class="il-title">Lokasi</div><div class="il-desc">Masbagik, Lombok Timur, NTB — melayani seluruh Indonesia</div></div></li>
-      <li><div class="il-icon">💬</div><div><div class="il-title">Kontak CS</div><div class="il-desc">WhatsApp &amp; Telegram: 081938282686 | Aktif 24 jam</div></div></li>
+      <li><div class="il-icon">💬</div><div><div class="il-title">Kontak CS</div><div class="il-desc">WhatsApp &amp; Telegram: 081239515295 | Aktif 24 jam</div></div></li>
     </ul></div>
   </div>
 
@@ -616,5 +612,219 @@ function selectGame(g){
   window.scrollTo({top:0,behavior:'smooth'});
 }
 </script>
+
+<!-- ===== CS WIDGET ===== -->
+<style>
+#cs-bubble{position:fixed;bottom:20px;right:16px;z-index:9998;display:flex;flex-direction:column;align-items:flex-end;gap:10px}
+#cs-toggle-btn{width:54px;height:54px;border-radius:50%;background:linear-gradient(135deg,#1565c0,#0d47a1);border:none;cursor:pointer;box-shadow:0 4px 20px rgba(21,101,192,0.45);display:flex;align-items:center;justify-content:center;transition:transform .2s;position:relative}
+#cs-toggle-btn:hover{transform:scale(1.08)}
+#cs-toggle-btn svg{width:26px;height:26px;fill:#fff;transition:opacity .2s}
+#cs-toggle-btn .cs-icon-close{position:absolute;opacity:0}
+#cs-toggle-btn.open .cs-icon-chat{opacity:0}
+#cs-toggle-btn.open .cs-icon-close{opacity:1}
+#cs-notif-dot{position:absolute;top:4px;right:4px;width:11px;height:11px;border-radius:50%;background:#f5a623;border:2px solid #fff;animation:cs-pulse 2s infinite}
+@keyframes cs-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.3)}}
+#cs-panel{width:320px;border-radius:16px;box-shadow:0 12px 48px rgba(21,101,192,0.22);overflow:hidden;border:1px solid #d6e2f0;background:#fff;display:none;flex-direction:column;max-height:480px}
+#cs-panel.open{display:flex}
+.cs-head{background:linear-gradient(135deg,#1565c0,#0d47a1);padding:12px 14px;display:flex;align-items:center;gap:10px}
+.cs-head-av{width:34px;height:34px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+.cs-head-info{flex:1}
+.cs-head-info h4{color:#fff;font-size:13px;font-weight:700;margin:0}
+.cs-head-info p{color:rgba(255,255,255,0.75);font-size:11px;margin:0}
+.cs-status{display:inline-block;width:7px;height:7px;border-radius:50%;background:#4ade80;margin-right:4px}
+.cs-tabs{display:flex;background:#f5f8ff;border-bottom:1px solid #d6e2f0}
+.cs-tab{flex:1;padding:9px 4px;font-size:12px;font-weight:600;text-align:center;cursor:pointer;color:#8aa0b8;border-bottom:2px solid transparent;transition:all .2s;font-family:inherit}
+.cs-tab.active{color:#1565c0;border-bottom-color:#1565c0;background:#fff}
+.cs-msgs{flex:1;overflow-y:auto;padding:10px;display:flex;flex-direction:column;gap:8px;min-height:0}
+.cs-msg{display:flex;gap:7px;align-items:flex-end}
+.cs-msg.u{flex-direction:row-reverse}
+.cs-bbl{max-width:78%;padding:8px 11px;border-radius:14px;font-size:12px;line-height:1.5;font-family:'Plus Jakarta Sans',sans-serif}
+.cs-msg.b .cs-bbl{background:#f0f4f8;border:1px solid #d6e2f0;color:#1a2640;border-bottom-left-radius:4px}
+.cs-msg.u .cs-bbl{background:#1565c0;color:#fff;border-bottom-right-radius:4px}
+.cs-av{width:26px;height:26px;border-radius:50%;background:#e3eeff;display:flex;align-items:center;justify-content:center;font-size:12px;flex-shrink:0}
+.cs-typing{display:flex;gap:4px;padding:8px 12px;align-items:center}
+.cs-typing span{width:5px;height:5px;border-radius:50%;background:#8aa0b8;animation:cs-bounce 1.2s infinite}
+.cs-typing span:nth-child(2){animation-delay:.2s}
+.cs-typing span:nth-child(3){animation-delay:.4s}
+@keyframes cs-bounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-5px)}}
+.cs-chips{display:flex;flex-wrap:wrap;gap:5px;padding:0 10px 7px}
+.cs-chip{padding:4px 10px;border:1px solid #b8cfe8;border-radius:12px;font-size:11px;cursor:pointer;color:#4a607a;background:#f5f8ff;white-space:nowrap;transition:all .15s;font-family:inherit}
+.cs-chip:hover{background:#e3eeff;border-color:#1565c0;color:#1565c0}
+.cs-input-row{display:flex;gap:7px;padding:8px 10px;border-top:1px solid #d6e2f0;background:#fff}
+.cs-input-row input{flex:1;padding:7px 11px;border:1px solid #b8cfe8;border-radius:18px;font-size:12px;color:#1a2640;outline:none;font-family:inherit;background:#f5f8ff}
+.cs-input-row input:focus{border-color:#1565c0;background:#fff}
+.cs-send{width:32px;height:32px;border-radius:50%;background:#1565c0;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:opacity .2s}
+.cs-send:hover{opacity:.85}
+.cs-send svg{width:14px;height:14px;fill:#fff}
+.cs-email-form{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:9px}
+.cs-email-form label{font-size:11px;font-weight:600;color:#4a607a;display:block;margin-bottom:3px;font-family:inherit}
+.cs-email-form input,.cs-email-form select,.cs-email-form textarea{width:100%;padding:7px 10px;border:1px solid #b8cfe8;border-radius:10px;font-size:12px;color:#1a2640;background:#f5f8ff;outline:none;font-family:inherit}
+.cs-email-form input:focus,.cs-email-form select:focus,.cs-email-form textarea:focus{border-color:#1565c0;background:#fff}
+.cs-email-form textarea{resize:vertical;min-height:70px}
+.cs-submit{padding:9px;background:#1565c0;color:#fff;border:none;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;transition:opacity .2s;font-family:inherit;letter-spacing:.3px}
+.cs-submit:hover{opacity:.87}
+.cs-ok{background:#eaf7f0;border:1px solid #00a86b;border-radius:10px;padding:10px;font-size:12px;color:#007a4d;display:none;align-items:center;gap:7px;font-family:inherit}
+</style>
+
+<div id="cs-bubble">
+  <div id="cs-panel">
+    <div class="cs-head">
+      <div class="cs-head-av">🤖</div>
+      <div class="cs-head-info">
+        <h4>ONE TopUp Support</h4>
+        <p><span class="cs-status"></span>Online · balas dalam detik</p>
+      </div>
+    </div>
+    <div class="cs-tabs">
+      <div class="cs-tab active" onclick="csTab('chat',this)">💬 Live Chat</div>
+      <div class="cs-tab" onclick="csTab('email',this)">📧 Kirim Email</div>
+    </div>
+    <!-- CHAT PANEL -->
+    <div id="cs-chat-panel" style="display:flex;flex-direction:column;flex:1;min-height:0;overflow:hidden">
+      <div class="cs-msgs" id="cs-msgs">
+        <div class="cs-msg b">
+          <div class="cs-av">🤖</div>
+          <div class="cs-bbl">Halo! Selamat datang di ONE TopUp 👋 Ada yang bisa saya bantu seputar top up Diamond FF atau ML?</div>
+        </div>
+      </div>
+      <div class="cs-chips" id="cs-chips">
+        <div class="cs-chip" onclick="csSendChip(this)">Cek status order</div>
+        <div class="cs-chip" onclick="csSendChip(this)">Cara bayar QRIS</div>
+        <div class="cs-chip" onclick="csSendChip(this)">Berapa lama proses?</div>
+        <div class="cs-chip" onclick="csSendChip(this)">Hubungi admin</div>
+      </div>
+      <div class="cs-input-row">
+        <input type="text" id="cs-inp" placeholder="Ketik pesan..." onkeydown="if(event.key==='Enter')csSend()" />
+        <button class="cs-send" onclick="csSend()" aria-label="Kirim">
+          <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2z"/></svg>
+        </button>
+      </div>
+    </div>
+    <!-- EMAIL PANEL -->
+    <div id="cs-email-panel" style="display:none;flex:1;min-height:0;overflow:hidden">
+      <div class="cs-email-form">
+        <div><label>Nama *</label><input type="text" id="ce-name" placeholder="Nama lengkap" /></div>
+        <div><label>Email *</label><input type="email" id="ce-email" placeholder="nama@email.com" /></div>
+        <div><label>No. WhatsApp</label><input type="text" id="ce-wa" placeholder="08xxxxxxxxxx" /></div>
+        <div><label>Topik *</label>
+          <select id="ce-topic">
+            <option value="">— Pilih topik —</option>
+            <option>Order tidak masuk</option>
+            <option>Diamond belum diterima</option>
+            <option>Masalah pembayaran</option>
+            <option>Refund / Pengembalian</option>
+            <option>Pertanyaan harga</option>
+            <option>Lainnya</option>
+          </select>
+        </div>
+        <div><label>Pesan *</label><textarea id="ce-msg" placeholder="Ceritakan kendala atau pertanyaan Anda..."></textarea></div>
+        <div class="cs-ok" id="cs-ok">✅ Pesan terkirim! Kami akan balas ke email Anda dalam 1×24 jam.</div>
+        <button class="cs-submit" onclick="csSubmitEmail()">Kirim Pesan ✉️</button>
+      </div>
+    </div>
+  </div>
+
+  <button id="cs-toggle-btn" onclick="csToggle()" aria-label="Buka live chat">
+    <span id="cs-notif-dot"></span>
+    <svg class="cs-icon-chat" viewBox="0 0 24 24"><path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/></svg>
+    <svg class="cs-icon-close" style="position:absolute;opacity:0" viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+  </button>
+</div>
+
+<script>
+(function(){
+  const csHistory = [];
+  const csSystem = `Kamu adalah CS (customer service) ONE TopUp, layanan top up Diamond Free Fire dan Mobile Legends yang terpercaya di Indonesia.
+Jawab pertanyaan pelanggan dengan ramah, singkat (maks 2-3 kalimat), dan profesional dalam Bahasa Indonesia.
+Informasi penting:
+- Produk: Top Up Diamond Free Fire (FF) dan Mobile Legends (ML)
+- Pembayaran: QRIS, transfer bank
+- Proses top up biasanya 1-5 menit setelah pembayaran dikonfirmasi
+- Jika ada kendala, pelanggan bisa hubungi admin via email di panel "Kirim Email"
+- Jangan menjanjikan hal yang tidak pasti
+Gunakan emoji secukupnya. Jika pelanggan ingin bicara dengan manusia, arahkan ke tab "Kirim Email".`;
+
+  window.csToggle = function(){
+    const panel = document.getElementById('cs-panel');
+    const btn = document.getElementById('cs-toggle-btn');
+    const dot = document.getElementById('cs-notif-dot');
+    panel.classList.toggle('open');
+    btn.classList.toggle('open');
+    dot.style.display = 'none';
+  };
+
+  window.csTab = function(tab, el){
+    document.querySelectorAll('.cs-tab').forEach(t=>t.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('cs-chat-panel').style.display = tab==='chat'?'flex':'none';
+    document.getElementById('cs-email-panel').style.display = tab==='email'?'flex':'none';
+  };
+
+  function csAddMsg(text, role){
+    const box = document.getElementById('cs-msgs');
+    const d = document.createElement('div');
+    d.className = 'cs-msg '+(role==='user'?'u':'b');
+    d.innerHTML = (role==='bot'?'<div class="cs-av">🤖</div>':'')+`<div class="cs-bbl">${text}</div>`;
+    box.appendChild(d);
+    box.scrollTop = box.scrollHeight;
+  }
+
+  function csShowTyping(){
+    const box = document.getElementById('cs-msgs');
+    const d = document.createElement('div');
+    d.className = 'cs-msg b'; d.id = 'cs-typing';
+    d.innerHTML = '<div class="cs-av">🤖</div><div class="cs-bbl cs-typing"><span></span><span></span><span></span></div>';
+    box.appendChild(d); box.scrollTop = box.scrollHeight;
+  }
+
+  function csRemoveTyping(){ const t=document.getElementById('cs-typing'); if(t)t.remove(); }
+
+  window.csSend = async function(){
+    const inp = document.getElementById('cs-inp');
+    const text = inp.value.trim(); if(!text) return;
+    inp.value = '';
+    document.getElementById('cs-chips').style.display='none';
+    csAddMsg(text,'user');
+    csHistory.push({role:'user',content:text});
+    csShowTyping();
+    try{
+      const res = await fetch('https://api.anthropic.com/v1/messages',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:csSystem,messages:csHistory})
+      });
+      const data = await res.json();
+      csRemoveTyping();
+      const reply = data.content?.map(c=>c.text||'').join('')||'Maaf, ada gangguan. Coba lagi atau gunakan form email ya 🙏';
+      csHistory.push({role:'assistant',content:reply});
+      csAddMsg(reply,'bot');
+    } catch(e){
+      csRemoveTyping();
+      csAddMsg('Maaf, koneksi bermasalah. Silakan gunakan form Email untuk menghubungi kami 🙏','bot');
+    }
+  };
+
+  window.csSendChip = function(el){
+    document.getElementById('cs-inp').value = el.textContent;
+    csSend();
+  };
+
+  window.csSubmitEmail = function(){
+    const name=document.getElementById('ce-name').value.trim();
+    const email=document.getElementById('ce-email').value.trim();
+    const topic=document.getElementById('ce-topic').value;
+    const msg=document.getElementById('ce-msg').value.trim();
+    if(!name||!email||!topic||!msg){alert('Mohon lengkapi semua kolom wajib (*)');return;}
+    const ok=document.getElementById('cs-ok');
+    ok.style.display='flex';
+    ['ce-name','ce-email','ce-wa','ce-msg'].forEach(id=>document.getElementById(id).value='');
+    document.getElementById('ce-topic').value='';
+    setTimeout(()=>ok.style.display='none',6000);
+  };
+})();
+</script>
+<!-- ===== END CS WIDGET ===== -->
+
 </body>
 </html>
+PLACEHOLDER

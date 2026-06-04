@@ -800,7 +800,7 @@ function markMultiVUsed(vouchers,orderId,game){
 function deleteVoucher(code,game){ saveVF(game,loadVF(game).filter(v=>v.code!==code)); renderVouchers(); }
 function clearUsedVouchers(){ ['ff','ml'].forEach(g=>saveVF(g,loadVF(g).filter(v=>v.status!=='used'))); renderVouchers(); toast('Voucher terpakai dihapus','ok'); }
 
-function renderVouchers(){
+async function renderVouchers(){
   const ffv=loadVF('ff'), mlv=loadVF('ml');
   const ffav=ffv.filter(v=>v.status==='available').length, mlav=mlv.filter(v=>v.status==='available').length;
   const ffus=ffv.filter(v=>v.status==='used').length, mlus=mlv.filter(v=>v.status==='used').length;
@@ -820,7 +820,7 @@ function renderVouchers(){
   // Rebuild amt-selector chips based on active pkgs
   const amtSel=document.getElementById('amt-selector');
   if(amtSel){
-    const pkgs=getActivePkgs(currentVTab);
+    const pkgs=await getActivePkgs(currentVTab);
     const amts=[...new Set(pkgs.map(p=>parseInt(p.amt)))].sort((a,b)=>a-b);
     if(!amts.length && currentVTab==='ml') amts.push(24,59);
     if(!amts.length && currentVTab==='ff') amts.push(70,140,355);
@@ -1029,7 +1029,7 @@ async function markPaid(orderId){
   const log=lsGet('onetopup_log',[]); const li=log.findIndex(o=>o.order_id===orderId);
   if(li!==-1){ Object.assign(log[li],patch); lsSet('onetopup_log',log); }
   else { const fromMem=allOrders.find(o=>o.order_id===orderId); if(fromMem){ log.unshift({...fromMem,...patch}); lsSet('onetopup_log',log); } }
-  renderOrders(); renderVouchers();
+  renderOrders(); await renderVouchers();
   toast(`⏳ Menyimpan...`,'');
   // Kirim ke Supabase
   let sbOk=false;
@@ -1439,7 +1439,7 @@ async function savePkgItem(){
   // bonus string untuk kompatibilitas lama
   const bonus = bonusAmt > 0 ? `+ ${bonusAmt.toLocaleString('id-ID')} Bonus Diamond` : null;
 
-  const pkgs = [...getActivePkgs(currentPkgTab)];
+  const pkgs = [...(await getActivePkgs(currentPkgTab))];
   const gamePrefix = currentPkgTab;
 
   if(editingPkgId !== null){

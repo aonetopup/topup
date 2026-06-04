@@ -955,15 +955,24 @@ async function renderQueue(qOrders){
   const el=document.getElementById('queue-body');
   if(!qOrders.length){ el.innerHTML='<div class="empty"><div class="empty-ico">✅</div>Antrian kosong — semua beres!</div>'; return; }
   const allV=await loadAllV();
-  el.innerHTML='<div class="q-grid">'+qOrders.map(o=>{
+
+  // Pre-fetch preview voucher untuk semua order sebelum .map()
+  // (await tidak boleh dipakai langsung di dalam .map() biasa — harus async + Promise.all)
+  const previews = await Promise.all(qOrders.map(async o => {
+    const av = allV.filter(v=>v.usedBy===o.order_id);
+    if(av.length > 0) return null;
+    return await getVouchersForOrder(o);
+  }));
+
+  el.innerHTML='<div class="q-grid">'+qOrders.map((o, _idx)=>{
     const assignedVouchers=allV.filter(v=>v.usedBy===o.order_id);
     const hasV=assignedVouchers.length>0;
     const isPending=o.status==='Pending';
     const isProcessing=o.status==='Processing';
     const statusClass=isPending?'is-pending':isProcessing?'is-processing':'is-paid';
 
-    // Preview stok voucher yang tersedia untuk order ini (jika belum assigned)
-    const preview=!hasV?await getVouchersForOrder(o):null;
+    // Gunakan preview yang sudah di-fetch di atas
+    const preview=previews[_idx];
     const canAutoFill=preview&&preview.vouchers.length>0;
     const stockInfo=!hasV&&preview?(
       preview.exact?

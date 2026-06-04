@@ -301,15 +301,15 @@ body::before{
 .pkg-disc-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
 .pkg-orig{font-size:0.6rem;color:var(--text3);text-decoration:line-through;}
 .pkg-disc-badge{font-size:0.52rem;font-weight:800;background:var(--red);color:#fff;border-radius:4px;padding:1px 5px;}
-.pkg-price{font-size:1rem;font-weight:800;color:var(--primary);line-height:1;}
+.pkg-price{font-size:1.2rem;font-weight:800;color:var(--primary);line-height:1;}
 
 
 /* Save badge */
 .pkg-save-badge{
   position:absolute;bottom:0;left:0;right:0;
   background:linear-gradient(135deg,#F59E0B,#FBBF24);
-  color:#fff;font-size:0.52rem;font-weight:800;
-  text-align:center;padding:3px 6px;letter-spacing:.3px;
+  color:#fff;font-size:0.44rem;font-weight:800;
+  text-align:center;padding:2px 4px;letter-spacing:.3px;
 }
 
 /* ---- INFO TABS ---- */

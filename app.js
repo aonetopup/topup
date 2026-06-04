@@ -532,7 +532,6 @@ function renderPkgs() {
           <span class="pkg-disc-badge">-${disc}%</span>
         </div>` : ''}
         <div class="pkg-price">${fmt(p.price)}</div>
-        <div class="pkg-per-dm">Rp ${fmtN(pricePerDiamond)} /Diamond</div>
       </div>
       ${disc ? `<div class="pkg-save-badge">Hemat ${fmt(origPrice - p.price)}</div>` : ''}
     </div>`;

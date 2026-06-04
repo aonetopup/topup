@@ -301,8 +301,8 @@ body::before{
 .pkg-disc-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
 .pkg-orig{font-size:0.6rem;color:var(--text3);text-decoration:line-through;}
 .pkg-disc-badge{font-size:0.52rem;font-weight:800;background:var(--red);color:#fff;border-radius:4px;padding:1px 5px;}
-.pkg-price{font-size:0.88rem;font-weight:800;color:var(--primary);line-height:1;}
-.pkg-per-dm{font-size:0.58rem;color:var(--text3);margin-top:2px;font-weight:500;}
+.pkg-price{font-size:1rem;font-weight:800;color:var(--primary);line-height:1;}
+
 
 /* Save badge */
 .pkg-save-badge{

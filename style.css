@@ -308,7 +308,7 @@ body::before{
 .pkg-save-badge{
   position:absolute;bottom:0;left:0;right:0;
   background:linear-gradient(135deg,#F59E0B,#FBBF24);
-  color:#fff;font-size:0.44rem;font-weight:800;
+  color:#fff;font-size:0.12rem;font-weight:400;
   text-align:center;padding:2px 4px;letter-spacing:.3px;
 }
 

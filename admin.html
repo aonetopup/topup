@@ -777,16 +777,31 @@ async function addVouchers(){
   if(!newItems.length){ toast('Semua kode sudah ada!','err'); return; }
   toast('⏳ Menyimpan ke Supabase...','ok');
   // Insert ke Supabase satu per satu (atau batch)
+  if(!sb){
+    const all = [...existing, ...newItems];
+    lsSet(`onetopup_voucher_${currentVTab}`, all);
+    _vCache[currentVTab] = null;
+    toast(`⚠️ Supabase tidak terhubung, tersimpan lokal: ${newItems.length} kode`,'err');
+    renderVouchers(); return;
+  }
   try {
-    const rows = newItems.map(v=>({ code:v.code, game:v.game, amt:v.amt, unit:'Diamond', status:'available', added_at:v.addedAt, used:false }));
+    const rows = newItems.map(v=>({
+      code: v.code, game: v.game, amt: v.amt,
+      unit: 'Diamond', status: 'available',
+      added_at: v.addedAt, used: false,
+      orderid: null, usedat: null
+    }));
     const { error } = await sb.from('redeem_codes').insert(rows);
     if(error) throw error;
     _vCache[currentVTab] = null; // reset cache
   } catch(e) {
-    // fallback: simpan ke localStorage saja
+    // Tampilkan pesan error asli Supabase agar mudah diagnosa
+    console.error('Supabase insert error:', e);
+    const errMsg = e?.message || e?.code || e?.details || 'unknown error';
     const all = [...existing, ...newItems];
     lsSet(`onetopup_voucher_${currentVTab}`, all);
-    toast(`⚠️ Supabase gagal, tersimpan lokal: ${newItems.length} kode`,'err');
+    _vCache[currentVTab] = null;
+    toast(`⚠️ Supabase: ${errMsg}`,'err');
     renderVouchers(); return;
   }
   document.getElementById('v-input').value='';

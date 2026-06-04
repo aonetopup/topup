@@ -951,7 +951,7 @@ function selectAmtChip(btn){
 // ════════════════════════════════════════════════════════════
 // RENDER QUEUE — kartu antrian dengan tombol konfirmasi inline
 // ════════════════════════════════════════════════════════════
-function renderQueue(qOrders){
+async function renderQueue(qOrders){
   const el=document.getElementById('queue-body');
   if(!qOrders.length){ el.innerHTML='<div class="empty"><div class="empty-ico">✅</div>Antrian kosong — semua beres!</div>'; return; }
   const allV=await loadAllV();
@@ -1024,7 +1024,7 @@ function renderQueue(qOrders){
 // ════════════════════════════════════════════════════════════
 // RENDER ORDERS TABLE
 // ════════════════════════════════════════════════════════════
-function renderOrders(){
+async function renderOrders(){
   const q=(document.getElementById('srch').value||'').toLowerCase();
   let orders=[...allOrders];
   if(currentFilter!=='all') orders=orders.filter(o=>o.status===currentFilter);
@@ -1046,7 +1046,7 @@ function renderOrders(){
   document.getElementById('st-rev').textContent=fmtK(todayRev);
   document.getElementById('order-sub').textContent=`${orders.length} dari ${total} order`;
 
-  renderQueue(allOrders.filter(o=>['Pending','Paid','Processing'].includes(o.status) && o.status!=='Cancelled'));
+  await renderQueue(allOrders.filter(o=>['Pending','Paid','Processing'].includes(o.status) && o.status!=='Cancelled'));
   renderRevenue();
 
   const tbody=document.getElementById('order-tbody');
@@ -1187,7 +1187,7 @@ async function autoAssignAll(){
 // ════════════════════════════════════════════════════════════
 // ASSIGN MODAL
 // ════════════════════════════════════════════════════════════
-function openAssignModal(orderId){
+async function openAssignModal(orderId){
   const o=allOrders.find(x=>x.order_id===orderId); if(!o)return;
   assigningId=orderId;
   document.getElementById('m-sub').textContent=`${o.game} — ${fmtN(o.amt||0)} ${o.unit||'Diamond'} 💎`;
@@ -1358,7 +1358,7 @@ function hideLoading(){ document.getElementById('loading').classList.remove('sho
 // ════════════════════════════════════════════════════════════
 // REALTIME (Supabase)
 // ════════════════════════════════════════════════════════════
-function setupRealtime(){
+async function setupRealtime(){
   if(!sb)return;
   try{
     sb.channel('admin-sync')

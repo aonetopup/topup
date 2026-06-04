@@ -74,11 +74,36 @@ const GAMES = {
   }
 };
 
-// ── Load custom pkgs dari admin panel (kalau ada) ──────────
-const _CUSTOM_PKGS = (()=>{ try{ return JSON.parse(localStorage.getItem('onetopup_custom_pkgs')||'null'); }catch(e){return null;} })();
-if(_CUSTOM_PKGS){
-  if(_CUSTOM_PKGS.ff && _CUSTOM_PKGS.ff.length) GAMES.ff.pkgs = _CUSTOM_PKGS.ff;
-  if(_CUSTOM_PKGS.ml && _CUSTOM_PKGS.ml.length) GAMES.ml.pkgs = _CUSTOM_PKGS.ml;
+// ── Load paket dari Supabase (sinkron semua device) ──────────
+async function loadPkgsFromSupabase(game) {
+  try {
+    const { data, error } = await sb.from('packages').select('*').eq('game', game).order('sort_order').order('amt');
+    if (error || !data || !data.length) return null;
+    return data.map(r => ({
+      id: r.id, amt: r.amt, baseAmt: r.base_amt, bonusAmt: r.bonus_amt,
+      bonus: r.bonus, price: r.price, disc: r.disc || 0, popular: r.popular
+    }));
+  } catch(e) { return null; }
+}
+
+async function initPkgs() {
+  const [ff, ml] = await Promise.all([
+    loadPkgsFromSupabase('ff'),
+    loadPkgsFromSupabase('ml')
+  ]);
+  if (ff && ff.length) GAMES.ff.pkgs = ff;
+  else {
+    // fallback localStorage
+    const local = JSON.parse(localStorage.getItem('onetopup_custom_pkgs') || 'null');
+    if (local && local.ff && local.ff.length) GAMES.ff.pkgs = local.ff;
+  }
+  if (ml && ml.length) GAMES.ml.pkgs = ml;
+  else {
+    const local = JSON.parse(localStorage.getItem('onetopup_custom_pkgs') || 'null');
+    if (local && local.ml && local.ml.length) GAMES.ml.pkgs = local.ml;
+  }
+  // Re-render kalau sudah tampil
+  if (typeof renderPkgs === 'function') renderPkgs();
 }
 
 const PAYS = [
@@ -1089,6 +1114,8 @@ document.addEventListener('DOMContentLoaded', () => {
       if (e.key === 'Enter') processRedeemCode();
     });
   }
+  // Load paket dari Supabase saat halaman dibuka
+  initPkgs();
 });
 
 // ────────────────────────────────────────────────────────────

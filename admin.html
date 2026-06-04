@@ -1295,11 +1295,49 @@ function setupRealtime(){
 
 
 // ════════════════════════════════════════════════════════════
-// KELOLA PAKET
+// KELOLA PAKET — Supabase sync
 // ════════════════════════════════════════════════════════════
 const PKG_KEY = 'onetopup_custom_pkgs';
 let currentPkgTab = 'ff';
 let editingPkgId = null;
+let _activePkgsCache = { ff: null, ml: null };
+
+async function loadPkgsFromSupabase(game) {
+  try {
+    const { data, error } = await sb.from('packages').select('*').eq('game', game).order('sort_order').order('amt');
+    if (error || !data || !data.length) return null;
+    return data.map(r => ({
+      id: r.id, amt: r.amt, baseAmt: r.base_amt, bonusAmt: r.bonus_amt,
+      bonus: r.bonus, price: r.price, disc: r.disc || 0, popular: r.popular
+    }));
+  } catch(e) { return null; }
+}
+
+async function savePkgsToSupabase(game, pkgs) {
+  const rows = pkgs.map((p, i) => ({
+    id: p.id, game, amt: p.amt, base_amt: p.baseAmt || null,
+    bonus_amt: p.bonusAmt || null, bonus: p.bonus || null,
+    price: p.price, disc: p.disc || 0, popular: !!p.popular,
+    sort_order: i, updated_at: new Date().toISOString()
+  }));
+  await sb.from('packages').delete().eq('game', game);
+  const { error } = await sb.from('packages').insert(rows);
+  if (error) throw error;
+  _activePkgsCache[game] = pkgs;
+  const all = lsGet(PKG_KEY, {});
+  all[game] = pkgs;
+  lsSet(PKG_KEY, all);
+}
+
+async function getActivePkgs(game) {
+  if (_activePkgsCache[game]) return _activePkgsCache[game];
+  const fromSB = await loadPkgsFromSupabase(game);
+  if (fromSB) { _activePkgsCache[game] = fromSB; return fromSB; }
+  const all = lsGet(PKG_KEY, null);
+  if (all && all[game]) { _activePkgsCache[game] = all[game]; return all[game]; }
+  _activePkgsCache[game] = DEFAULT_PKGS[game];
+  return DEFAULT_PKGS[game];
+}
 
 // Default packages (sama dengan app.js)
 const DEFAULT_PKGS = {
@@ -1334,19 +1372,7 @@ const DEFAULT_PKGS = {
   ]
 };
 
-function loadCustomPkgs(game){
-  const all = lsGet(PKG_KEY, null);
-  if(!all || !all[game]) return null; // null = pakai default
-  return all[game];
-}
-function saveCustomPkgs(game, pkgs){
-  const all = lsGet(PKG_KEY, {});
-  all[game] = pkgs;
-  lsSet(PKG_KEY, all);
-}
-function getActivePkgs(game){
-  return loadCustomPkgs(game) || DEFAULT_PKGS[game];
-}
+// loadCustomPkgs, saveCustomPkgs, getActivePkgs now use Supabase (defined above)
 
 function switchPkgTab(g){
   currentPkgTab = g;
@@ -1358,8 +1384,8 @@ function switchPkgTab(g){
   renderPkgList();
 }
 
-function renderPkgList(){
-  const pkgs = getActivePkgs(currentPkgTab);
+async function renderPkgList(){
+  const pkgs = await getActivePkgs(currentPkgTab);
   const el = document.getElementById('pkg-list-render');
   const cnt = document.getElementById('pkg-count');
   if(cnt) cnt.textContent = pkgs.length;
@@ -1399,7 +1425,7 @@ function renderPkgList(){
   el.innerHTML = html;
 }
 
-function savePkgItem(){
+async function savePkgItem(){
   const baseAmt  = parseInt(document.getElementById('pf-amt').value)||0;
   const bonusAmt = parseInt(document.getElementById('pf-bonus-amt').value)||0;
   const price    = parseInt(document.getElementById('pf-price').value)||0;
@@ -1426,13 +1452,18 @@ function savePkgItem(){
     toast(`✅ Paket ${baseAmt}${bonusAmt?'+'+bonusAmt+' Bonus':''} Diamond ditambahkan!`,'ok');
   }
 
-  saveCustomPkgs(currentPkgTab, pkgs);
+  try {
+    await savePkgsToSupabase(currentPkgTab, pkgs);
+    toast(`✅ Paket berhasil disimpan & disinkron ke semua device!`, 'ok');
+  } catch(e) {
+    toast('⚠️ Gagal simpan ke Supabase: ' + e.message, 'err');
+  }
   resetPkgForm();
   renderPkgList();
 }
 
-function editPkgItem(idx){
-  const pkgs = getActivePkgs(currentPkgTab);
+async function editPkgItem(idx){
+  const pkgs = await getActivePkgs(currentPkgTab);
   const p = pkgs[idx];
   editingPkgId = idx;
   // Hitung baseAmt & bonusAmt dari data yang tersimpan
@@ -1451,13 +1482,18 @@ function editPkgItem(idx){
   updatePkgPreview();
 }
 
-function deletePkgItem(idx){
-  const pkgs = [...getActivePkgs(currentPkgTab)];
+async function deletePkgItem(idx){
+  const pkgs = [...(await getActivePkgs(currentPkgTab))];
   const p = pkgs[idx];
+  if(!confirm(`Hapus paket ${parseInt(p.amt).toLocaleString('id-ID')} Diamond?`)) return;
   pkgs.splice(idx,1);
-  saveCustomPkgs(currentPkgTab, pkgs);
-  renderPkgList();
-  toast(`🗑️ Paket ${parseInt(p.amt).toLocaleString('id-ID')} Diamond dihapus`,'ok');
+  try {
+    await savePkgsToSupabase(currentPkgTab, pkgs);
+    renderPkgList();
+    toast(`🗑️ Paket ${parseInt(p.amt).toLocaleString('id-ID')} Diamond dihapus`, 'ok');
+  } catch(e) {
+    toast('⚠️ Gagal hapus: ' + e.message, 'err');
+  }
 }
 
 function cancelEditPkg(){
@@ -1501,13 +1537,16 @@ function updatePkgPreview(){
   `;
 }
 
-function resetPkgToDefault(){
+async function resetPkgToDefault(){
   if(!confirm(`Reset semua paket ${currentPkgTab.toUpperCase()} ke default? Data custom akan hilang.`)) return;
-  const all = lsGet(PKG_KEY, {});
-  delete all[currentPkgTab];
-  lsSet(PKG_KEY, all);
-  renderPkgList();
-  toast(`↩ Paket ${currentPkgTab.toUpperCase()} direset ke default`,'ok');
+  _activePkgsCache[currentPkgTab] = null;
+  try {
+    await savePkgsToSupabase(currentPkgTab, DEFAULT_PKGS[currentPkgTab]);
+    renderPkgList();
+    toast(`↩ Paket ${currentPkgTab.toUpperCase()} direset ke default & disinkron!`, 'ok');
+  } catch(e) {
+    toast('⚠️ Gagal reset: ' + e.message, 'err');
+  }
 }
 
 // ════════════════════════════════════════════════════════════
@@ -1516,6 +1555,8 @@ function resetPkgToDefault(){
 async function init(){
   const s=loadSettings();
   document.getElementById('tog-auto').checked=s.autoAssign;
+  // Pre-load paket dari Supabase saat start
+  await Promise.all([getActivePkgs('ff'), getActivePkgs('ml')]);
   renderPkgList();
   document.getElementById('tog-notif').checked=s.notif;
   document.getElementById('tog-refresh').checked=s.autoRefresh!==false;

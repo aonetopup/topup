@@ -534,7 +534,7 @@ const CFG = {
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjbnJhdGN0d2V6emh4dHJ6ZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjkzMDksImV4cCI6MjA5NTEwNTMwOX0.tc6lLDOceuv_L6mFXKRSfNYw8LJsIFYCOcETPTBulrg',
   tgBotToken:  '8530811986:AAGweu9eyUEtjWeKLdJpMtwBAKaH1sql7jY',
   tgChatId:    '1373603810',
-  adminWA:     '6281938282686',
+  adminWA:     '6285126881331',
   adminTG:     'onetopup02',
   duniaGamesBase: 'https://duniagames.co.id/dg-voucher/redeem-voucher/',
 };
@@ -713,21 +713,67 @@ function addVouchers(){
   renderVouchers();
   toast(`✅ ${added} kode ${currentVTab==='ff'?'Free Fire':'ML'} (${amt} 💎) ditambahkan!`,'ok');
 }
-function getVoucherFor(order){
-  const g=(order.game||'').toLowerCase().includes('mobile')||(order.game||'').toLowerCase().includes('ml')?'ml':'ff';
+function getGameKey(order){
+  return (order.game||'').toLowerCase().includes('mobile')||(order.game||'').toLowerCase().includes('ml')?'ml':'ff';
+}
+
+// Cari kombinasi voucher yang totalnya tepat sama dengan orderAmt
+// Strategi: greedy — pakai voucher dengan amt terbesar dulu, lalu sisa diisi voucher kecil
+function getVouchersForOrder(order){
+  const g=getGameKey(order);
   const allV=loadVF(g);
   const orderAmt=parseInt(order.amt)||0;
-  // Prioritas: voucher dengan amt yang cocok, kalau tidak ada ambil yang tersedia
-  const byAmt=allV.find(v=>v.status==='available'&&parseInt(v.amt||0)===orderAmt);
-  const anyAvail=allV.find(v=>v.status==='available');
-  return{ voucher: byAmt||anyAvail||null, game:g };
+  const available=allV.filter(v=>v.status==='available'&&parseInt(v.amt||0)>0);
+
+  // Grup berdasarkan amt, sort dari terbesar ke terkecil
+  const amtGroups={};
+  available.forEach(v=>{
+    const a=parseInt(v.amt); if(!amtGroups[a])amtGroups[a]=[]; amtGroups[a].push(v);
+  });
+  const sortedAmts=Object.keys(amtGroups).map(Number).sort((a,b)=>b-a);
+
+  // Greedy: ambil voucher terbesar yang muat, sampai total terpenuhi
+  let remaining=orderAmt;
+  const picked=[];
+  for(const amt of sortedAmts){
+    while(remaining>=amt && amtGroups[amt].length>0){
+      picked.push(amtGroups[amt].shift());
+      remaining-=amt;
+    }
+    if(remaining===0)break;
+  }
+
+  if(remaining!==0){
+    // Tidak bisa tepat — coba fallback: 1 voucher dengan amt >= orderAmt
+    const bigEnough=available.find(v=>parseInt(v.amt||0)>=orderAmt);
+    if(bigEnough) return{ vouchers:[bigEnough], game:g, exact:false, total:parseInt(bigEnough.amt) };
+    return{ vouchers:[], game:g, exact:false, total:0 };
+  }
+  return{ vouchers:picked, game:g, exact:true, total:orderAmt };
 }
+
+// Kompatibilitas mundur untuk autoAssignAll (pakai single-voucher lama)
+function getVoucherFor(order){
+  const res=getVouchersForOrder(order);
+  return{ voucher: res.vouchers[0]||null, game:res.game };
+}
+
 function markVUsed(code,orderId,game){
   const gs=game?[game]:['ff','ml'];
   for(const g of gs){
     const vv=loadVF(g); const i=vv.findIndex(v=>v.code===code);
     if(i!==-1){ vv[i].status='used'; vv[i].usedBy=orderId; vv[i].usedAt=new Date().toISOString(); saveVF(g,vv); break; }
   }
+  renderVouchers();
+}
+function markMultiVUsed(vouchers,orderId,game){
+  if(!vouchers||!vouchers.length)return;
+  const vv=loadVF(game);
+  vouchers.forEach(v=>{
+    const i=vv.findIndex(x=>x.code===v.code);
+    if(i!==-1){ vv[i].status='used'; vv[i].usedBy=orderId; vv[i].usedAt=new Date().toISOString(); }
+  });
+  saveVF(game,vv);
   renderVouchers();
 }
 function deleteVoucher(code,game){ saveVF(game,loadVF(game).filter(v=>v.code!==code)); renderVouchers(); }
@@ -806,12 +852,34 @@ function renderQueue(qOrders){
   if(!qOrders.length){ el.innerHTML='<div class="empty"><div class="empty-ico">✅</div>Antrian kosong — semua beres!</div>'; return; }
   const allV=loadAllV();
   el.innerHTML='<div class="q-grid">'+qOrders.map(o=>{
-    const assigned=allV.find(v=>v.usedBy===o.order_id);
-    const hasV=!!assigned;
-    const duniaUrl=hasV?CFG.duniaGamesBase+assigned.code:null;
+    const assignedVouchers=allV.filter(v=>v.usedBy===o.order_id);
+    const hasV=assignedVouchers.length>0;
     const isPending=o.status==='Pending';
     const isProcessing=o.status==='Processing';
     const statusClass=isPending?'is-pending':isProcessing?'is-processing':'is-paid';
+
+    // Preview stok voucher yang tersedia untuk order ini (jika belum assigned)
+    const preview=!hasV?getVouchersForOrder(o):null;
+    const canAutoFill=preview&&preview.vouchers.length>0;
+    const stockInfo=!hasV&&preview?(
+      preview.exact?
+        `<span style="font-size:0.62rem;color:var(--green2);background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:20px;padding:2px 9px">✓ Stok OK · ${preview.vouchers.length} voucher (${preview.vouchers.map(v=>v.amt+'💎').join('+')})</span>`:
+        preview.vouchers.length?`<span style="font-size:0.62rem;color:var(--gold);background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.2);border-radius:20px;padding:2px 9px">⚠️ Pakai ${preview.vouchers[0].amt}💎 (tidak tepat)</span>`:
+        `<span style="font-size:0.62rem;color:var(--red2);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:2px 9px">❌ Stok voucher kurang!</span>`
+    ):'';
+
+    const voucherDisplay=hasV?`
+      <div class="q-voucher" style="flex-direction:column;gap:6px;align-items:stretch">
+        <div style="display:flex;align-items:center;justify-content:space-between">
+          <div class="q-vc-label">Voucher Terpakai · ${assignedVouchers.length} kode · Total ${assignedVouchers.reduce((s,v)=>s+(parseInt(v.amt)||0),0)}💎</div>
+        </div>
+        ${assignedVouchers.map(v=>`
+          <div style="display:flex;align-items:center;gap:8px">
+            <div class="q-vc-code" style="font-size:0.78rem">${v.code}</div>
+            <span style="font-size:0.6rem;color:var(--gold2);background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.2);border-radius:4px;padding:1px 6px">${v.amt}💎</span>
+            <a href="${CFG.duniaGamesBase+v.code}" target="_blank" class="q-vc-link" style="font-size:0.62rem;padding:3px 8px">🌐 DG</a>
+          </div>`).join('')}
+      </div>`:'';
 
     return `<div class="q-card ${statusClass}">
       <div class="q-top">
@@ -820,6 +888,7 @@ function renderQueue(qOrders){
           <div class="q-game">${o.game||'—'}</div>
           <div class="q-amt">${fmtN(o.amt||0)} ${o.unit||'Diamond'} 💎${o.bonus?` · <span style="color:var(--gold2)">+${o.bonus}</span>`:''}</div>
           <div class="q-meta">ID: <b style="color:var(--text)">${o.id_game||'—'}</b> · WA: ${o.wa_customer||'—'}</div>
+          ${stockInfo?`<div style="margin-top:5px">${stockInfo}</div>`:''}
         </div>
         <div class="q-right">
           <div class="q-price">${fmt(o.price||0)}</div>
@@ -827,15 +896,10 @@ function renderQueue(qOrders){
           <span style="font-size:0.65rem;color:var(--text3)">${o.pay_method||''}</span>
         </div>
       </div>
-      ${hasV?`
-      <div class="q-voucher">
-        <div><div class="q-vc-label">Voucher Assigned</div><div class="q-vc-code">${assigned.code}</div></div>
-        <a href="${duniaUrl}" target="_blank" class="q-vc-link">🌐 Buka DG</a>
-      </div>`:''}
+      ${voucherDisplay}
       <div class="q-actions">
         ${isPending?`
-          <button class="q-btn q-btn-done" onclick="markPaid('${o.order_id}')">✅ Konfirmasi Selesai</button>
-          <button class="q-btn q-btn-done" onclick="markDone('${o.order_id}')" style="max-width:46px" title="Tandai Selesai">✅</button>
+          <button class="q-btn q-btn-done" onclick="markPaid('${o.order_id}')" ${!canAutoFill&&!hasV?'style="opacity:0.65"':''}>✅ Konfirmasi${canAutoFill?' & Assign':''}</button>
           <button class="q-btn q-btn-cancel" onclick="cancelOrder('${o.order_id}')" style="max-width:46px" title="Batalkan">❌</button>
           <button class="q-btn q-btn-outline" style="max-width:42px" onclick="openDetail('${o.order_id}')">🔍</button>
         `:isProcessing&&hasV?`
@@ -851,7 +915,7 @@ function renderQueue(qOrders){
       </div>
     </div>`;
   }).join('')+'</div>';
-}
+}}
 
 // ════════════════════════════════════════════════════════════
 // RENDER ORDERS TABLE
@@ -914,11 +978,33 @@ function renderOrders(){
 // QUICK ACTIONS
 // ════════════════════════════════════════════════════════════
 async function markPaid(orderId){
+  const o=allOrders.find(x=>x.order_id===orderId);
+  if(!o)return;
+
+  // ── AUTO-ASSIGN VOUCHER ──
+  const alreadyAssigned=loadAllV().filter(v=>v.usedBy===orderId);
+  let voucherCodes=alreadyAssigned.map(v=>v.code);
+  let assignMsg='';
+
+  if(!alreadyAssigned.length){
+    const res=getVouchersForOrder(o);
+    if(res.vouchers.length>0){
+      markMultiVUsed(res.vouchers, orderId, res.game);
+      voucherCodes=res.vouchers.map(v=>v.code);
+      const detail=res.vouchers.map(v=>v.code+' ('+v.amt+'💎)').join(', ');
+      assignMsg=`\nVoucher  : ${detail}`;
+      toast(`⚡ ${res.vouchers.length} voucher di-assign otomatis!`,'ok');
+    } else {
+      toast('⚠️ Stok voucher tidak cukup — konfirmasi tetap dilanjutkan.','err');
+    }
+  }
+
   // Update in-memory dulu (optimistic UI)
   const mi=allOrders.findIndex(o=>o.order_id===orderId);
-  if(mi!==-1) allOrders[mi].status='Completed';
-  // Simpan ke localStorage segera sebagai safety net
   const patch={status:'Completed',updated_at:new Date().toISOString()};
+  if(voucherCodes.length) patch.voucher_code=voucherCodes.join(',');
+  if(mi!==-1) Object.assign(allOrders[mi],patch);
+  // Simpan ke localStorage segera sebagai safety net
   const log=lsGet('onetopup_log',[]); const li=log.findIndex(o=>o.order_id===orderId);
   if(li!==-1){ Object.assign(log[li],patch); lsSet('onetopup_log',log); }
   else { const fromMem=allOrders.find(o=>o.order_id===orderId); if(fromMem){ log.unshift({...fromMem,...patch}); lsSet('onetopup_log',log); } }
@@ -931,8 +1017,8 @@ async function markPaid(orderId){
   else { toast(`⚠️ Tersimpan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
   const s=loadSettings();
   if(s.notif&&CFG.tgBotToken){
-    const o=allOrders.find(x=>x.order_id===orderId);
-    if(o) sendTG(`✅ *ORDER SELESAI — ONE TopUp*\n━━━━━━━━━━━━━━━━\nOrder ID : *${o.order_id}*\nGame     : ${o.game||'—'}\nNominal  : *${fmtN(o.amt||0)} ${o.unit||'Diamond'}* 💎\nID Game  : *${o.id_game||'—'}*\n━━━━━━━━━━━━━━━━\n_Diamond sudah masuk. Terima kasih!_ 🎉`);
+    const oo=allOrders.find(x=>x.order_id===orderId);
+    if(oo) sendTG(`✅ *ORDER SELESAI — ONE TopUp*\n━━━━━━━━━━━━━━━━\nOrder ID : *${oo.order_id}*\nGame     : ${oo.game||'—'}\nNominal  : *${fmtN(oo.amt||0)} ${oo.unit||'Diamond'}* 💎\nID Game  : *${oo.id_game||'—'}*${assignMsg}\n━━━━━━━━━━━━━━━━\n_Diamond sudah masuk. Terima kasih!_ 🎉`);
   }
 }
 
@@ -980,15 +1066,18 @@ async function cancelOrder(orderId){
 async function autoAssignAll(){
   const paid=allOrders.filter(o=>o.status==='Paid');
   if(!paid.length){ toast('Tidak ada order yang perlu diproses','err'); return; }
-  let assigned=0; showLoading('Auto-assign order...');
+  let assigned=0; let noStock=0; showLoading('Auto-assign order...');
   for(const o of paid){
-    const{voucher:v,game:g}=getVoucherFor(o); if(!v)continue;
-    markVUsed(v.code,o.order_id,g);
-    await updateOrder(o.order_id,{status:'Processing',voucher_code:v.code}); assigned++;
+    const res=getVouchersForOrder(o);
+    if(!res.vouchers.length){ noStock++; continue; }
+    markMultiVUsed(res.vouchers, o.order_id, res.game);
+    const codes=res.vouchers.map(v=>v.code).join(',');
+    await updateOrder(o.order_id,{status:'Processing',voucher_code:codes}); assigned++;
   }
   hideLoading();
   if(!assigned){ toast('⚠️ Stok voucher habis!','err'); return; }
-  await refreshOrders(); toast(`✅ ${assigned} order di-assign voucher!`,'ok');
+  if(noStock) toast(`✅ ${assigned} order di-assign. ⚠️ ${noStock} order stok kurang.`,'ok');
+  else await refreshOrders(); toast(`✅ ${assigned} order di-assign voucher otomatis!`,'ok');
 }
 
 // ════════════════════════════════════════════════════════════

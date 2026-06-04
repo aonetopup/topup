@@ -11,7 +11,7 @@ const CFG = {
   supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InRjbnJhdGN0d2V6emh4dHJ6ZnFvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzk1MjkzMDksImV4cCI6MjA5NTEwNTMwOX0.tc6lLDOceuv_L6mFXKRSfNYw8LJsIFYCOcETPTBulrg',
   tgBotToken:  '8530811986:AAGweu9eyUEtjWeKLdJpMtwBAKaH1sql7jY',
   tgChatId:    '1373603810',
-  adminWA:     '6281239515295',
+  adminWA:     '6285126881331',
   adminTG:     'onetopup02',
   qrisImage:   'qris.jpg',
   rekening: {
@@ -87,8 +87,8 @@ const PAYS = [
   {id:'GoPay',     icon:'🟢', name:'GoPay',             desc:'E-Wallet'},
   {id:'ShopeePay', icon:'🟠', name:'ShopeePay',         desc:'E-Wallet'},
   {id:'BCA',       icon:'🏦', name:'Transfer BCA',      desc:'Bank Transfer'},
-  {id:'Mandiri',   icon:'🔴', name:'Transfer Mandiri',  desc:'Bank Transfer'},
-  {id:'SeaBank',   icon:'🟩', name:'Transfer SeaBank',  desc:'Bank Transfer'},
+  {id:'Mandiri',   icon:'🏦', name:'Transfer Mandiri',  desc:'Bank Transfer'},
+  {id:'SeaBank',   icon:'🏦', name:'Transfer SeaBank',  desc:'Bank Transfer'},
 ];
 
 // ────────────────────────────────────────────────────────────

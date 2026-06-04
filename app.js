@@ -503,22 +503,40 @@ function switchGame(g) {
 
 function renderPkgs() {
   const gd = GAMES[S.game];
-  document.getElementById('pkg-grid').innerHTML = gd.pkgs.map(p => `
-    <div class="pkg-item${p.popular?' popular':''}${S.pkg&&S.pkg.id===p.id?' selected':''}"
+  document.getElementById('pkg-grid').innerHTML = gd.pkgs.map(p => {
+    const disc = p.disc || p.discount || 0;
+    // Parse bonus angka — support format "48 Diamond", "+ 50 Diamond", angka mentah
+    const bonusNum = p.bonusAmt ? parseInt(p.bonusAmt) :
+      (p.bonus ? parseInt(String(p.bonus).replace(/[^0-9]/g,'')) || 0 : 0);
+    const baseAmt = p.baseAmt ? parseInt(p.baseAmt) : (bonusNum > 0 ? p.amt - bonusNum : p.amt);
+    const totalAmt = p.amt;
+    const pricePerDiamond = totalAmt > 0 ? Math.round(p.price / totalAmt) : 0;
+    const origPrice = disc ? Math.round(p.price / (1 - disc/100)) : 0;
+
+    return `<div class="pkg-item${p.popular?' popular':''}${S.pkg&&S.pkg.id===p.id?' selected':''}"
          id="pi-${p.id}" onclick="pickPkg('${p.id}')">
       <div class="pkg-check">✓</div>
-      <span class="pkg-icon">${gd.icon}</span>
-      <div class="pkg-amt">${fmtN(p.amt)}</div>
-      <div class="pkg-unit">${gd.unit}</div>
-      <div class="pkg-price">
-        ${(p.disc||p.discount) ? `<div class="pkg-disc-wrap">
-          <span class="pkg-orig">${fmt(Math.round(p.price/(1-(p.disc||p.discount)/100)))}</span>
-          <span class="pkg-disc-badge">-${p.disc||p.discount}%</span>
-        </div>` : ''}
-        ${fmt(p.price)}
+      <div class="pkg-header">
+        <span class="pkg-icon">${gd.icon}</span>
+        <div class="pkg-amt-wrap">
+          ${bonusNum > 0
+            ? `<div class="pkg-amt">${fmtN(baseAmt)} <span class="pkg-amt-bonus">+ ${fmtN(bonusNum)} Bonus</span></div>`
+            : `<div class="pkg-amt">${fmtN(totalAmt)}</div>`
+          }
+          <div class="pkg-unit">${gd.unit}</div>
+        </div>
       </div>
-      ${p.bonus ? `<div class="pkg-bonus">${p.bonus}</div>` : ''}
-    </div>`).join('');
+      <div class="pkg-price-wrap">
+        ${disc ? `<div class="pkg-disc-row">
+          <span class="pkg-orig">${fmt(origPrice)}</span>
+          <span class="pkg-disc-badge">-${disc}%</span>
+        </div>` : ''}
+        <div class="pkg-price">${fmt(p.price)}</div>
+        <div class="pkg-per-dm">Rp ${fmtN(pricePerDiamond)} /Diamond</div>
+      </div>
+      ${disc ? `<div class="pkg-save-badge">Hemat ${fmt(origPrice - p.price)}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 function pickPkg(id) {

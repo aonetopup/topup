@@ -263,36 +263,54 @@ body::before{
   gap:8px;margin-bottom:20px;
 }
 .pkg-item{
-  background:#fff;border:1.5px solid var(--border);border-radius:12px;
-  padding:12px 10px;cursor:pointer;transition:all .18s;
+  background:#fff;border:1.5px solid var(--border);border-radius:14px;
+  padding:14px 12px 12px;cursor:pointer;transition:all .18s;
   position:relative;overflow:hidden;user-select:none;
-  box-shadow:0 1px 3px rgba(0,0,0,0.05);
+  box-shadow:0 2px 6px rgba(0,0,0,0.06);
+  display:flex;flex-direction:column;gap:0;
 }
-.pkg-item:hover{border-color:var(--primary2);background:var(--primary3);transform:translateY(-2px);box-shadow:var(--shadow2);}
+.pkg-item:hover{border-color:var(--primary2);background:var(--primary3);transform:translateY(-2px);box-shadow:0 6px 18px rgba(26,86,219,0.12);}
 .pkg-item.selected{border-color:var(--primary);background:var(--primary3);box-shadow:0 0 0 3px rgba(26,86,219,0.1);}
 .pkg-item.popular::before{
   content:'TERLARIS';position:absolute;top:0;right:0;
   background:var(--primary);color:#fff;font-size:0.46rem;font-weight:800;
-  padding:3px 7px;border-radius:0 12px 0 7px;
+  padding:3px 8px;border-radius:0 14px 0 8px;letter-spacing:.5px;
 }
 .pkg-check{
-  position:absolute;top:7px;right:7px;width:16px;height:16px;
+  position:absolute;top:8px;left:8px;width:16px;height:16px;
   background:var(--primary);border-radius:50%;display:none;
   align-items:center;justify-content:center;font-size:0.55rem;font-weight:900;color:#fff;
 }
 .pkg-item.selected .pkg-check{display:flex;}
-.pkg-icon{font-size:1.2rem;margin-bottom:6px;display:block;}
-.pkg-amt{font-size:1.05rem;font-weight:800;color:var(--text);line-height:1;margin-bottom:2px;}
-.pkg-unit{font-size:0.56rem;color:var(--text3);}
-.pkg-price{font-size:0.78rem;font-weight:700;color:var(--primary);margin-top:5px;}
-.pkg-bonus{
-  margin-top:3px;font-size:0.54rem;font-weight:600;color:var(--green);
-  background:#ECFDF5;border:1px solid #A7F3D0;border-radius:5px;
-  padding:2px 5px;display:inline-block;
+
+/* Header: icon + amt */
+.pkg-header{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;}
+.pkg-icon{font-size:1.3rem;flex-shrink:0;margin-top:2px;}
+.pkg-amt-wrap{flex:1;min-width:0;}
+.pkg-amt{font-size:0.95rem;font-weight:800;color:var(--text);line-height:1.2;word-break:break-word;}
+.pkg-amt-bonus{
+  display:inline-block;font-size:0.72rem;font-weight:700;
+  color:#059669;background:#ECFDF5;
+  border:1px solid #A7F3D0;border-radius:5px;
+  padding:1px 6px;margin-left:3px;white-space:nowrap;vertical-align:middle;
 }
-.pkg-disc-wrap{display:flex;align-items:center;gap:4px;margin-top:3px;}
-.pkg-orig{font-size:0.56rem;color:var(--text3);text-decoration:line-through;}
-.pkg-disc-badge{font-size:0.54rem;font-weight:800;background:var(--red);color:#fff;border-radius:4px;padding:1px 4px;}
+.pkg-unit{font-size:0.58rem;color:var(--text3);margin-top:2px;font-weight:500;}
+
+/* Price section */
+.pkg-price-wrap{border-top:1px solid var(--border);padding-top:8px;margin-top:auto;}
+.pkg-disc-row{display:flex;align-items:center;gap:5px;margin-bottom:3px;}
+.pkg-orig{font-size:0.6rem;color:var(--text3);text-decoration:line-through;}
+.pkg-disc-badge{font-size:0.52rem;font-weight:800;background:var(--red);color:#fff;border-radius:4px;padding:1px 5px;}
+.pkg-price{font-size:0.88rem;font-weight:800;color:var(--primary);line-height:1;}
+.pkg-per-dm{font-size:0.58rem;color:var(--text3);margin-top:2px;font-weight:500;}
+
+/* Save badge */
+.pkg-save-badge{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(135deg,#F59E0B,#FBBF24);
+  color:#fff;font-size:0.52rem;font-weight:800;
+  text-align:center;padding:3px 6px;letter-spacing:.3px;
+}
 
 /* ---- INFO TABS ---- */
 .info-tabs{display:flex;gap:2px;border-bottom:2px solid var(--border);margin-bottom:14px;}

@@ -444,16 +444,37 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
         </div>
         <!-- Form tambah/edit -->
         <div class="pkg-form" id="pkg-form">
-          <div style="font-size:0.72rem;font-weight:700;color:var(--text2);margin-bottom:10px" id="pkg-form-title">➕ Tambah Paket Baru</div>
+          <div style="font-size:0.72rem;font-weight:700;color:var(--text2);margin-bottom:12px" id="pkg-form-title">➕ Tambah Paket Baru</div>
+          <!-- Baris 1: Diamond Utama + Bonus + Harga -->
           <div class="pkg-form-row">
-            <div><div class="pf-lbl">Nominal (Diamond)</div><input class="pf-inp" id="pf-amt" type="number" placeholder="500" min="1"></div>
-            <div><div class="pf-lbl">Harga (Rp)</div><input class="pf-inp" id="pf-price" type="number" placeholder="65000" min="0"></div>
-            <div><div class="pf-lbl">Diskon % (opsional)</div><input class="pf-inp" id="pf-disc" type="number" placeholder="0" min="0" max="99"></div>
+            <div>
+              <div class="pf-lbl">💎 Diamond Utama</div>
+              <input class="pf-inp" id="pf-amt" type="number" placeholder="500" min="1" oninput="updatePkgPreview()">
+              <div style="font-size:0.58rem;color:var(--text3);margin-top:3px">Jumlah diamond yang dibeli</div>
+            </div>
+            <div>
+              <div class="pf-lbl">🎁 Bonus Diamond</div>
+              <input class="pf-inp" id="pf-bonus-amt" type="number" placeholder="0" min="0" oninput="updatePkgPreview()">
+              <div style="font-size:0.58rem;color:var(--text3);margin-top:3px">Bonus gratis (0 = tidak ada)</div>
+            </div>
+            <div>
+              <div class="pf-lbl">💰 Harga Jual (Rp)</div>
+              <input class="pf-inp" id="pf-price" type="number" placeholder="65000" min="0" oninput="updatePkgPreview()">
+            </div>
           </div>
-          <div class="pkg-form-row2">
-            <div><div class="pf-lbl">Bonus (opsional)</div><input class="pf-inp" id="pf-bonus" type="text" placeholder="+ 50 Diamond"></div>
-            <div style="display:flex;flex-direction:column;justify-content:flex-end;gap:8px">
-              <div class="pf-check-row"><input type="checkbox" id="pf-popular"><label for="pf-popular">Tandai Popular 🔥</label></div>
+          <!-- Baris 2: Diskon + Popular + Preview -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:10px;align-items:start">
+            <div>
+              <div class="pf-lbl">🏷️ Diskon % (opsional)</div>
+              <input class="pf-inp" id="pf-disc" type="number" placeholder="0" min="0" max="99" oninput="updatePkgPreview()">
+            </div>
+            <div style="display:flex;flex-direction:column;justify-content:flex-end;padding-bottom:2px">
+              <div class="pf-check-row" style="margin-bottom:6px"><input type="checkbox" id="pf-popular" onchange="updatePkgPreview()"><label for="pf-popular">🔥 Tandai Popular</label></div>
+            </div>
+            <!-- Preview mini -->
+            <div id="pkg-preview-wrap" style="background:var(--bg4);border:1px solid var(--border2);border-radius:9px;padding:9px 11px;min-height:60px;display:flex;flex-direction:column;gap:3px">
+              <div style="font-size:0.58rem;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px">Preview Kartu</div>
+              <div id="pkg-preview-content" style="font-size:0.75rem;color:var(--text3)">Isi data di kiri →</div>
             </div>
           </div>
           <div style="display:flex;gap:7px;margin-top:4px">
@@ -1358,10 +1379,15 @@ function renderPkgList(){
       </div>`;
       sepInserted = true;
     }
+    const bonusN = p.bonusAmt ? parseInt(p.bonusAmt) : (p.bonus ? parseInt(String(p.bonus).replace(/[^0-9]/g,''))||0 : 0);
+    const baseN  = p.baseAmt  ? parseInt(p.baseAmt)  : (bonusN>0 ? p.amt-bonusN : p.amt);
+    const amtLabel = bonusN>0
+      ? `${parseInt(baseN).toLocaleString('id-ID')} <span style="color:var(--gold2)">+${parseInt(bonusN).toLocaleString('id-ID')} Bonus</span> 💎`
+      : `${parseInt(p.amt).toLocaleString('id-ID')} 💎`;
     html += `<div class="pkg-item-row">
-      <div class="pir-amt">${parseInt(p.amt).toLocaleString('id-ID')} 💎</div>
+      <div class="pir-amt">${amtLabel}</div>
       <div class="pir-price">${fmt2(p.price)}</div>
-      ${p.bonus ? `<span class="pir-bonus">${p.bonus}</span>` : ''}
+      ${bonusN>0 ? `<span class="pir-bonus">+${parseInt(bonusN).toLocaleString('id-ID')} Bonus</span>` : ''}
       ${p.popular ? `<span class="pir-pop">🔥 Popular</span>` : ''}
       ${p.disc ? `<span style="font-size:0.6rem;color:var(--orange);background:rgba(249,115,22,0.1);border:1px solid rgba(249,115,22,0.25);border-radius:4px;padding:2px 6px">-${p.disc}%</span>` : ''}
       <div class="pir-actions">
@@ -1374,29 +1400,30 @@ function renderPkgList(){
 }
 
 function savePkgItem(){
-  const amt = parseInt(document.getElementById('pf-amt').value);
-  const price = parseInt(document.getElementById('pf-price').value);
-  const disc = parseInt(document.getElementById('pf-disc').value||'0')||0;
-  const bonus = document.getElementById('pf-bonus').value.trim()||null;
-  const popular = document.getElementById('pf-popular').checked;
+  const baseAmt  = parseInt(document.getElementById('pf-amt').value)||0;
+  const bonusAmt = parseInt(document.getElementById('pf-bonus-amt').value)||0;
+  const price    = parseInt(document.getElementById('pf-price').value)||0;
+  const disc     = parseInt(document.getElementById('pf-disc').value||'0')||0;
+  const popular  = document.getElementById('pf-popular').checked;
 
-  if(!amt||amt<1){ toast('Nominal diamond wajib diisi!','err'); return; }
+  if(!baseAmt||baseAmt<1){ toast('Nominal diamond wajib diisi!','err'); return; }
   if(!price||price<0){ toast('Harga wajib diisi!','err'); return; }
+
+  const amt = baseAmt + bonusAmt; // total diamond yang muncul di order
+  // bonus string untuk kompatibilitas lama
+  const bonus = bonusAmt > 0 ? `+ ${bonusAmt.toLocaleString('id-ID')} Bonus Diamond` : null;
 
   const pkgs = [...getActivePkgs(currentPkgTab)];
   const gamePrefix = currentPkgTab;
 
   if(editingPkgId !== null){
-    // Edit mode
-    pkgs[editingPkgId] = { ...pkgs[editingPkgId], amt, price, disc, bonus, popular };
-    toast(`✅ Paket ${amt} Diamond diperbarui!`,'ok');
+    pkgs[editingPkgId] = { ...pkgs[editingPkgId], amt, baseAmt, bonusAmt: bonusAmt||null, price, disc:disc||null, bonus, popular };
+    toast(`✅ Paket ${baseAmt}${bonusAmt?'+'+bonusAmt:''} Diamond diperbarui!`,'ok');
   } else {
-    // Add mode - generate ID unik
     const newId = gamePrefix+'-'+amt+'-'+Date.now();
-    pkgs.push({ id:newId, amt, price, disc:disc||null, bonus, popular });
-    // Sort by amt
+    pkgs.push({ id:newId, amt, baseAmt, bonusAmt: bonusAmt||null, price, disc:disc||null, bonus, popular });
     pkgs.sort((a,b)=>a.amt-b.amt);
-    toast(`✅ Paket ${amt} Diamond ditambahkan!`,'ok');
+    toast(`✅ Paket ${baseAmt}${bonusAmt?'+'+bonusAmt+' Bonus':''} Diamond ditambahkan!`,'ok');
   }
 
   saveCustomPkgs(currentPkgTab, pkgs);
@@ -1408,15 +1435,20 @@ function editPkgItem(idx){
   const pkgs = getActivePkgs(currentPkgTab);
   const p = pkgs[idx];
   editingPkgId = idx;
-  document.getElementById('pf-amt').value = p.amt;
+  // Hitung baseAmt & bonusAmt dari data yang tersimpan
+  const bonusN = p.bonusAmt ? parseInt(p.bonusAmt) :
+    (p.bonus ? parseInt(String(p.bonus).replace(/[^0-9]/g,''))||0 : 0);
+  const baseN  = p.baseAmt  ? parseInt(p.baseAmt)  : (bonusN>0 ? p.amt-bonusN : p.amt);
+  document.getElementById('pf-amt').value = baseN;
+  document.getElementById('pf-bonus-amt').value = bonusN||'';
   document.getElementById('pf-price').value = p.price;
   document.getElementById('pf-disc').value = p.disc||'';
-  document.getElementById('pf-bonus').value = p.bonus||'';
   document.getElementById('pf-popular').checked = !!p.popular;
   document.getElementById('pkg-form-title').textContent = `✏️ Edit Paket ${parseInt(p.amt).toLocaleString('id-ID')} Diamond`;
   document.getElementById('pkg-save-btn').textContent = '💾 Simpan Perubahan';
   document.getElementById('pkg-cancel-btn').style.display = 'block';
   document.getElementById('pkg-form').scrollIntoView({behavior:'smooth',block:'nearest'});
+  updatePkgPreview();
 }
 
 function deletePkgItem(idx){
@@ -1436,13 +1468,37 @@ function cancelEditPkg(){
 function resetPkgForm(){
   editingPkgId = null;
   document.getElementById('pf-amt').value = '';
+  document.getElementById('pf-bonus-amt').value = '';
   document.getElementById('pf-price').value = '';
   document.getElementById('pf-disc').value = '';
-  document.getElementById('pf-bonus').value = '';
   document.getElementById('pf-popular').checked = false;
   document.getElementById('pkg-form-title').textContent = '➕ Tambah Paket Baru';
   document.getElementById('pkg-save-btn').textContent = '➕ Tambah Paket';
   document.getElementById('pkg-cancel-btn').style.display = 'none';
+  document.getElementById('pkg-preview-content').innerHTML = '<span style="color:var(--text3)">Isi data di kiri →</span>';
+}
+
+function updatePkgPreview(){
+  const baseAmt  = parseInt(document.getElementById('pf-amt').value)||0;
+  const bonusAmt = parseInt(document.getElementById('pf-bonus-amt').value)||0;
+  const price    = parseInt(document.getElementById('pf-price').value)||0;
+  const disc     = parseInt(document.getElementById('pf-disc').value)||0;
+  const popular  = document.getElementById('pf-popular').checked;
+  const el = document.getElementById('pkg-preview-content');
+  if(!baseAmt && !price){ el.innerHTML = '<span style="color:var(--text3)">Isi data di kiri →</span>'; return; }
+  const totalAmt = baseAmt + bonusAmt;
+  const perDm    = totalAmt>0 ? Math.round(price/totalAmt) : 0;
+  const origPrice = disc ? Math.round(price/(1-disc/100)) : 0;
+  el.innerHTML = `
+    <div style="font-weight:800;color:var(--text);font-size:0.82rem;line-height:1.3">
+      ${baseAmt ? baseAmt.toLocaleString('id-ID') : '—'}💎
+      ${bonusAmt>0 ? `<span style="color:var(--green2);font-size:0.72rem"> +${bonusAmt.toLocaleString('id-ID')} Bonus</span>` : ''}
+      ${popular ? ' 🔥' : ''}
+    </div>
+    ${disc && origPrice ? `<div style="font-size:0.62rem;color:var(--text3)"><s>Rp ${origPrice.toLocaleString('id-ID')}</s> <span style="background:var(--red);color:#fff;border-radius:3px;padding:0 4px;font-size:0.55rem">-${disc}%</span></div>` : ''}
+    <div style="font-weight:700;color:var(--primary2);font-size:0.82rem">${price ? 'Rp '+price.toLocaleString('id-ID') : '—'}</div>
+    ${perDm ? `<div style="font-size:0.6rem;color:var(--text3)">Rp ${perDm.toLocaleString('id-ID')}/Diamond</div>` : ''}
+  `;
 }
 
 function resetPkgToDefault(){

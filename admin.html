@@ -330,6 +330,7 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
     <span class="tb-time" id="last-ref"></span>
     <button class="tbtn" onclick="exportCSV()">⬇ CSV</button>
     <button class="tbtn primary" id="ref-btn" onclick="doRefresh()">🔄 Refresh</button>
+    <button class="tbtn" id="sync-btn" onclick="forceSync()" title="Sync ulang semua data dari cloud" style="background:var(--primary2);color:#fff;border-color:var(--primary2)">☁️ Sync</button>
     <button class="tbtn" onclick="doLogout()" title="Logout" style="color:var(--text3)">🔓</button>
   </div>
 </div>
@@ -1315,6 +1316,29 @@ function stopAR(){ if(autoRefTimer){clearInterval(autoRefTimer);autoRefTimer=nul
 function doRefresh(){
   const btn=document.getElementById('ref-btn'); btn.textContent='⏳'; btn.disabled=true;
   refreshOrders().then(()=>{ btn.textContent='🔄 Refresh'; btn.disabled=false; toast('✅ Data diperbarui!','ok'); });
+}
+
+// Force sync — hapus semua cache lokal, reload ulang dari Supabase
+async function forceSync(){
+  const btn=document.getElementById('sync-btn');
+  btn.textContent='⏳ Syncing...'; btn.disabled=true;
+  // 1. Clear in-memory cache
+  invalidateVCache();
+  _settingsCache = null;
+  // 2. Hapus localStorage voucher lama supaya tidak terbaca sebagai fallback
+  localStorage.removeItem('onetopup_voucher_ff');
+  localStorage.removeItem('onetopup_voucher_ml');
+  localStorage.removeItem('onetopup_admin_settings');
+  // 3. Reload semua dari Supabase
+  await Promise.all([loadVF('ff'), loadVF('ml')]);
+  const s = await loadSettings();
+  document.getElementById('tog-auto').checked = s.autoAssign;
+  document.getElementById('tog-notif').checked = s.notif;
+  document.getElementById('tog-refresh').checked = s.autoRefresh !== false;
+  await refreshOrders();
+  await renderVouchers();
+  btn.textContent='☁️ Sync'; btn.disabled=false;
+  toast('✅ Semua data disinkron dari cloud!','ok');
 }
 
 // ════════════════════════════════════════════════════════════

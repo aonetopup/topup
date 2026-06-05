@@ -1057,6 +1057,23 @@ async function markPaid(orderId){
   const o=allOrders.find(x=>x.order_id===orderId);
   if(!o)return;
 
+  // ── CEK STATUS TERKINI DI SUPABASE (cegah double konfirmasi dari device lain) ──
+  if(sb){
+    try{
+      const{data,error}=await sb.from('orders').select('status,voucher_code').eq('order_id',orderId).single();
+      if(!error&&data){
+        if(data.status==='Completed'||data.status==='Processing'){
+          // Sudah dikonfirmasi device lain — update lokal saja
+          const mi=allOrders.findIndex(x=>x.order_id===orderId);
+          if(mi!==-1) Object.assign(allOrders[mi],{status:data.status,voucher_code:data.voucher_code});
+          await renderOrders(); await renderVouchers();
+          toast(`⚠️ Order ${orderId} sudah dikonfirmasi sebelumnya!`,'err');
+          return;
+        }
+      }
+    }catch(e){}
+  }
+
   // ── AUTO-ASSIGN VOUCHER ──
   const allVouchers=await loadAllV();
   const alreadyAssigned=allVouchers.filter(v=>v.usedBy===orderId);
@@ -1364,9 +1381,15 @@ function setupRealtime(){
         const s=await loadSettings();
         if(s.autoAssign){ const{voucher:v,game:g}=await getVoucherFor(o); if(v&&o.status==='Paid'){ await markVUsed(v.code,o.order_id,g); await updateOrder(o.order_id,{status:'Processing',voucher_code:v.code}); renderOrders(); } }
       })
-      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders'},(p)=>{
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders'},async(p)=>{
         const i=allOrders.findIndex(x=>x.order_id===p.new.order_id);
-        if(i!==-1)allOrders[i]=p.new; else allOrders.unshift(p.new); renderOrders();
+        if(i!==-1) allOrders[i]=p.new; else allOrders.unshift(p.new);
+        await renderOrders();
+        // Kalau order selesai/dibatalkan, invalidate voucher cache supaya stok ter-update
+        if(p.new.status==='Completed'||p.new.status==='Cancelled'){
+          invalidateVCache();
+          await renderVouchers();
+        }
       })
       .subscribe();
   }catch(e){}

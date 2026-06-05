@@ -546,8 +546,16 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
 
 
 <div class="toast" id="toast"></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// ════════════════════════════════════════════════════════════
+// LOAD SUPABASE JS — dengan fallback CDN
+// ════════════════════════════════════════════════════════════
+function _loadScript(url){ return new Promise(res=>{ var s=document.createElement('script'); s.src=url; s.onload=res; s.onerror=res; document.head.appendChild(s); }); }
+async function _initSupabase(){
+  if(!window.supabase) await _loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2');
+  if(!window.supabase) await _loadScript('https://unpkg.com/@supabase/supabase-js@2/dist/umd/supabase.js');
+  if(!window.supabase) await _loadScript('https://esm.sh/@supabase/supabase-js@2');
+}
 // ════════════════════════════════════════════════════════════
 // CONFIG — ganti sesuai milik kamu
 // ════════════════════════════════════════════════════════════
@@ -561,7 +569,14 @@ const CFG = {
   duniaGamesBase: 'https://duniagames.co.id/dg-voucher/redeem-voucher/',
 };
 let sb = null;
-try{ sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey); }catch(e){}
+async function initSb(){
+  await _initSupabase();
+  if(window.supabase){
+    try{ sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey); }catch(e){ console.error('Supabase createClient error:',e); }
+  }
+  if(!sb){ console.error('Supabase GAGAL diinisialisasi!'); setRTStatus('disconnected'); }
+  else { setRTStatus('connecting'); }
+}
 
 // ════════════════════════════════════════════════════════════
 // LOGIN — sesi 1 jam di localStorage
@@ -1678,9 +1693,9 @@ async function resetPkgToDefault(){
 // INIT
 // ════════════════════════════════════════════════════════════
 async function init(){
+  await initSb(); // tunggu Supabase library siap
   const s=await loadSettings();
   document.getElementById('tog-auto').checked=s.autoAssign;
-  // Pre-load paket dari Supabase saat start
   await Promise.all([getActivePkgs('ff'), getActivePkgs('ml')]);
   renderPkgList();
   document.getElementById('tog-notif').checked=s.notif;
@@ -1690,7 +1705,6 @@ async function init(){
   setupRealtime();
 }
 
-// Realtime listener untuk tabel vouchers — agar perubahan dari device lain langsung terlihat
 document.getElementById('v-input').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.ctrlKey)addVouchers(); });
 checkAuth();
 </script>

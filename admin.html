@@ -631,66 +631,85 @@ const isToday = iso => iso && new Date(iso).toDateString()===new Date().toDateSt
 // ════════════════════════════════════════════════════════════
 const lsGet = (k,d) => { try{ return JSON.parse(localStorage.getItem(k)||'null')??d; }catch(e){return d;} };
 const lsSet = (k,v) => localStorage.setItem(k,JSON.stringify(v));
-// ── Voucher: Supabase sebagai sumber utama, localStorage sebagai cache/fallback ──
-const _vCache = { ff: null, ml: null };
+
+// ── VOUCHER — Supabase sync ──────────────────────────────────
+// Cache in-memory supaya tidak bolak-balik ke Supabase di setiap render
+let _vCache = { ff: null, ml: null };
 
 async function loadVF(g) {
+  g = g.toLowerCase();
   if (_vCache[g]) return _vCache[g];
   try {
-    const { data, error } = await sb.from('redeem_codes').select('*').eq('game', g).order('added_at', { ascending: false });
-    if (!error && data) {
-      const mapped = data.map(r => ({ code: r.code, game: r.game, amt: r.amt, unit: r.unit||'Diamond', status: r.status||'available', addedAt: r.added_at, usedBy: r.orderid, usedAt: r.usedat }));
-      _vCache[g] = mapped;
-      lsSet(`onetopup_voucher_${g}`, mapped); // update local cache
-      return mapped;
-    }
+    const { data, error } = await sb.from('vouchers').select('*').eq('game', g).order('added_at');
+    if (!error && data) { _vCache[g] = data; return data; }
   } catch(e) {}
-  // fallback localStorage
-  return lsGet(`onetopup_voucher_${g.toLowerCase()}`, []);
+  // fallback ke localStorage kalau Supabase gagal
+  return lsGet(`onetopup_voucher_${g}`, []);
 }
 
-async function saveVFItem(item) {
-  // Insert/upsert 1 item ke Supabase
+async function saveVF(g, vouchers) {
+  g = g.toLowerCase();
+  _vCache[g] = vouchers;
+  // Simpan ke localStorage sebagai backup offline
+  lsSet(`onetopup_voucher_${g}`, vouchers);
   try {
-    await sb.from('redeem_codes').upsert({
-      code: item.code, game: item.game, amt: item.amt, unit: item.unit||'Diamond',
-      status: item.status||'available', added_at: item.addedAt||new Date().toISOString(),
-      orderid: item.usedBy||null, usedat: item.usedAt||null, used: item.status==='used'
-    }, { onConflict: 'code' });
-    _vCache[item.game] = null; // reset cache
-  } catch(e) { console.error('saveVFItem error', e); }
-}
-
-async function saveVF(g, items) {
-  // Simpan seluruh array — hapus semua milik game ini lalu insert ulang
-  try {
-    await sb.from('redeem_codes').delete().eq('game', g);
-    if (items.length) {
-      const rows = items.map(v => ({
-        code: v.code, game: g, amt: v.amt, unit: v.unit||'Diamond',
-        status: v.status||'available', added_at: v.addedAt||new Date().toISOString(),
-        orderid: v.usedBy||null, usedat: v.usedAt||null, used: v.status==='used'
+    // Delete semua voucher game ini, replace dengan data baru
+    await sb.from('vouchers').delete().eq('game', g);
+    if (vouchers.length) {
+      const rows = vouchers.map(v => ({
+        code: v.code, game: g, amt: v.amt || 0,
+        status: v.status || 'available',
+        used_by: v.usedBy || null,
+        used_at: v.usedAt || null,
+        added_at: v.addedAt || new Date().toISOString()
       }));
-      await sb.from('redeem_codes').insert(rows);
+      await sb.from('vouchers').insert(rows);
     }
-    _vCache[g] = null;
-    lsSet(`onetopup_voucher_${g}`, items);
-  } catch(e) { console.error('saveVF error', e); lsSet(`onetopup_voucher_${g}`, items); }
+  } catch(e) { console.warn('saveVF Supabase error:', e); }
 }
 
 async function loadAllV() {
-  const [ff, ml] = await Promise.all([loadVF('ff'), loadVF('ml')]);
+  const ff = await loadVF('ff');
+  const ml = await loadVF('ml');
   return [...ff.map(v=>({...v,game:'ff'})), ...ml.map(v=>({...v,game:'ml'}))];
 }
-const loadSettings = () => lsGet('onetopup_admin_settings',{autoAssign:true,notif:true,autoRefresh:true});
-function saveSettings(){
-  lsSet('onetopup_admin_settings',{
+
+// Invalidate cache (panggil setelah operasi yang mungkin mengubah data di device lain)
+function invalidateVCache(g) { if(g) _vCache[g.toLowerCase()]=null; else { _vCache.ff=null; _vCache.ml=null; } }
+
+// ── SETTINGS — Supabase sync ─────────────────────────────────
+let _settingsCache = null;
+
+async function loadSettings() {
+  if (_settingsCache) return _settingsCache;
+  try {
+    const { data, error } = await sb.from('admin_settings').select('*').eq('id', 1).single();
+    if (!error && data) {
+      _settingsCache = { autoAssign: data.auto_assign, notif: data.notif, autoRefresh: data.auto_refresh };
+      return _settingsCache;
+    }
+  } catch(e) {}
+  // fallback localStorage
+  return lsGet('onetopup_admin_settings', {autoAssign:true, notif:true, autoRefresh:true});
+}
+
+async function saveSettings() {
+  const s = {
     autoAssign: document.getElementById('tog-auto').checked,
     notif:      document.getElementById('tog-notif').checked,
     autoRefresh:document.getElementById('tog-refresh').checked,
-  });
-  toast('Pengaturan disimpan','ok');
+  };
+  _settingsCache = s;
+  lsSet('onetopup_admin_settings', s);
+  try {
+    await sb.from('admin_settings').upsert({
+      id: 1, auto_assign: s.autoAssign, notif: s.notif, auto_refresh: s.autoRefresh,
+      updated_at: new Date().toISOString()
+    });
+    toast('Pengaturan disimpan','ok');
+  } catch(e) { toast('Pengaturan disimpan (offline)','ok'); }
 }
+
 function toggleAutoRefresh(){ saveSettings(); const on=document.getElementById('tog-refresh').checked; if(on)startAR(); else stopAR(); }
 
 // ════════════════════════════════════════════════════════════
@@ -770,78 +789,37 @@ async function addVouchers(){
   const customAmt=parseInt(document.getElementById('v-amt-custom').value)||0;
   const amt=customAmt||(selBtn?parseInt(selBtn.dataset.amt):0);
   if(!amt){ toast('Pilih jumlah diamond dulu!','err'); return; }
-  const existing = await loadVF(currentVTab);
+  const existing=await loadVF(currentVTab);
   const existSet=new Set(existing.map(v=>v.code));
-  const newItems = [];
-  codes.forEach(code=>{ if(!existSet.has(code)){ newItems.push({code,game:currentVTab,amt,unit:'Diamond',status:'available',addedAt:new Date().toISOString(),usedBy:null}); } });
-  if(!newItems.length){ toast('Semua kode sudah ada!','err'); return; }
-  toast('⏳ Menyimpan ke Supabase...','ok');
-  // Insert ke Supabase satu per satu (atau batch)
-  if(!sb){
-    const all = [...existing, ...newItems];
-    lsSet(`onetopup_voucher_${currentVTab}`, all);
-    _vCache[currentVTab] = null;
-    toast(`⚠️ Supabase tidak terhubung, tersimpan lokal: ${newItems.length} kode`,'err');
-    renderVouchers(); return;
-  }
-  try {
-    const rows = newItems.map(v=>({
-      code: v.code, game: v.game, amt: v.amt,
-      unit: 'Diamond', status: 'available',
-      added_at: v.addedAt, used: false,
-      orderid: null, usedat: null
-    }));
-    const { error } = await sb.from('redeem_codes').insert(rows);
-    if(error) throw error;
-    _vCache[currentVTab] = null; // reset cache
-  } catch(e) {
-    // Tampilkan pesan error asli Supabase agar mudah diagnosa
-    console.error('Supabase insert error:', e);
-    const errMsg = e?.message || e?.code || e?.details || 'unknown error';
-    const all = [...existing, ...newItems];
-    lsSet(`onetopup_voucher_${currentVTab}`, all);
-    _vCache[currentVTab] = null;
-    toast(`⚠️ Supabase: ${errMsg}`,'err');
-    renderVouchers(); return;
-  }
+  let added=0;
+  codes.forEach(code=>{ if(!existSet.has(code)){ existing.push({code,game:currentVTab,amt,status:'available',addedAt:new Date().toISOString(),usedBy:null}); added++; } });
+  await saveVF(currentVTab,existing);
   document.getElementById('v-input').value='';
   document.getElementById('v-amt-custom').value='';
   document.querySelectorAll('.amt-chip').forEach(c=>c.classList.remove('on'));
-  await renderVouchers();
-  toast(`✅ ${newItems.length} kode ${currentVTab==='ff'?'Free Fire':'ML'} (${amt} 💎) ditambahkan & disinkron!`,'ok');
+  renderVouchers();
+  toast(`✅ ${added} kode ${currentVTab==='ff'?'Free Fire':'ML'} (${amt} 💎) ditambahkan!`,'ok');
 }
 function getGameKey(order){
   return (order.game||'').toLowerCase().includes('mobile')||(order.game||'').toLowerCase().includes('ml')?'ml':'ff';
 }
 
 // Cari kombinasi voucher yang totalnya tepat sama dengan orderAmt
-// Strategi: greedy — pakai voucher dengan amt terbesar dulu, lalu sisa diisi voucher kecil
 async function getVouchersForOrder(order){
   const g=getGameKey(order);
   const allV=await loadVF(g);
   const orderAmt=parseInt(order.amt)||0;
   const available=allV.filter(v=>v.status==='available'&&parseInt(v.amt||0)>0);
-
-  // Grup berdasarkan amt, sort dari terbesar ke terkecil
   const amtGroups={};
-  available.forEach(v=>{
-    const a=parseInt(v.amt); if(!amtGroups[a])amtGroups[a]=[]; amtGroups[a].push(v);
-  });
+  available.forEach(v=>{ const a=parseInt(v.amt); if(!amtGroups[a])amtGroups[a]=[]; amtGroups[a].push(v); });
   const sortedAmts=Object.keys(amtGroups).map(Number).sort((a,b)=>b-a);
-
-  // Greedy: ambil voucher terbesar yang muat, sampai total terpenuhi
   let remaining=orderAmt;
   const picked=[];
   for(const amt of sortedAmts){
-    while(remaining>=amt && amtGroups[amt].length>0){
-      picked.push(amtGroups[amt].shift());
-      remaining-=amt;
-    }
+    while(remaining>=amt && amtGroups[amt].length>0){ picked.push(amtGroups[amt].shift()); remaining-=amt; }
     if(remaining===0)break;
   }
-
   if(remaining!==0){
-    // Tidak bisa tepat — coba fallback: 1 voucher dengan amt >= orderAmt
     const bigEnough=available.find(v=>parseInt(v.amt||0)>=orderAmt);
     if(bigEnough) return{ vouchers:[bigEnough], game:g, exact:false, total:parseInt(bigEnough.amt) };
     return{ vouchers:[], game:g, exact:false, total:0 };
@@ -849,57 +827,34 @@ async function getVouchersForOrder(order){
   return{ vouchers:picked, game:g, exact:true, total:orderAmt };
 }
 
-// Kompatibilitas mundur untuk autoAssignAll (pakai single-voucher lama)
 async function getVoucherFor(order){
   const res=await getVouchersForOrder(order);
   return{ voucher: res.vouchers[0]||null, game:res.game };
 }
 
 async function markVUsed(code,orderId,game){
-  try {
-    await sb.from('redeem_codes').update({ status:'used', used:true, orderid:orderId, usedat:new Date().toISOString() }).eq('code', code);
-    _vCache[game||'ff'] = null; _vCache[game||'ml'] = null;
-  } catch(e) {
-    const gs=game?[game]:['ff','ml'];
-    for(const g of gs){
-      const vv=await loadVF(g); const i=vv.findIndex(v=>v.code===code);
-      if(i!==-1){ vv[i].status='used'; vv[i].usedBy=orderId; vv[i].usedAt=new Date().toISOString(); await saveVF(g,vv); break; }
-    }
+  const gs=game?[game]:['ff','ml'];
+  for(const g of gs){
+    const vv=await loadVF(g); const i=vv.findIndex(v=>v.code===code);
+    if(i!==-1){ vv[i].status='used'; vv[i].usedBy=orderId; vv[i].usedAt=new Date().toISOString(); await saveVF(g,vv); break; }
   }
   renderVouchers();
 }
 async function markMultiVUsed(vouchers,orderId,game){
   if(!vouchers||!vouchers.length)return;
-  try {
-    const codes = vouchers.map(v=>v.code);
-    await sb.from('redeem_codes').update({ status:'used', used:true, orderid:orderId, usedat:new Date().toISOString() }).in('code', codes);
-    _vCache[game] = null;
-  } catch(e) {
-    const vv=await loadVF(game);
-    vouchers.forEach(v=>{ const i=vv.findIndex(x=>x.code===v.code); if(i!==-1){ vv[i].status='used'; vv[i].usedBy=orderId; vv[i].usedAt=new Date().toISOString(); } });
-    await saveVF(game,vv);
-  }
+  const vv=await loadVF(game);
+  vouchers.forEach(v=>{ const i=vv.findIndex(x=>x.code===v.code); if(i!==-1){ vv[i].status='used'; vv[i].usedBy=orderId; vv[i].usedAt=new Date().toISOString(); } });
+  await saveVF(game,vv);
   renderVouchers();
 }
-async function deleteVoucher(code,game){
-  try { await sb.from('redeem_codes').delete().eq('code', code); _vCache[game]=null; }
-  catch(e) { await saveVF(game,(await loadVF(game)).filter(v=>v.code!==code)); }
-  renderVouchers();
-}
+async function deleteVoucher(code,game){ await saveVF(game,(await loadVF(game)).filter(v=>v.code!==code)); renderVouchers(); }
 async function clearUsedVouchers(){
-  try {
-    await sb.from('redeem_codes').delete().eq('status','used');
-    _vCache.ff=null; _vCache.ml=null;
-    toast('🗑️ Voucher terpakai dihapus dari Supabase!','ok');
-  } catch(e) {
-    for(const g of ['ff','ml']){ const vv=await loadVF(g); await saveVF(g,vv.filter(v=>v.status!=='used')); }
-    toast('Voucher terpakai dihapus (lokal)','ok');
-  }
-  renderVouchers();
+  for(const g of ['ff','ml']) await saveVF(g,(await loadVF(g)).filter(v=>v.status!=='used'));
+  renderVouchers(); toast('Voucher terpakai dihapus','ok');
 }
 
 async function renderVouchers(){
-  const [ffv, mlv]=await Promise.all([loadVF('ff'), loadVF('ml')]);
+  const ffv=await loadVF('ff'), mlv=await loadVF('ml');
   const ffav=ffv.filter(v=>v.status==='available').length, mlav=mlv.filter(v=>v.status==='available').length;
   const ffus=ffv.filter(v=>v.status==='used').length, mlus=mlv.filter(v=>v.status==='used').length;
   const tot=ffav+mlav, totus=ffus+mlus;
@@ -970,24 +925,16 @@ async function renderQueue(qOrders){
   const el=document.getElementById('queue-body');
   if(!qOrders.length){ el.innerHTML='<div class="empty"><div class="empty-ico">✅</div>Antrian kosong — semua beres!</div>'; return; }
   const allV=await loadAllV();
-
-  // Pre-fetch preview voucher untuk semua order sebelum .map()
-  // (await tidak boleh dipakai langsung di dalam .map() biasa — harus async + Promise.all)
-  const previews = await Promise.all(qOrders.map(async o => {
-    const av = allV.filter(v=>v.usedBy===o.order_id);
-    if(av.length > 0) return null;
-    return await getVouchersForOrder(o);
-  }));
-
-  el.innerHTML='<div class="q-grid">'+qOrders.map((o, _idx)=>{
+  // Pre-load preview stok voucher untuk semua order secara paralel
+  const previews=await Promise.all(qOrders.map(o=>getVouchersForOrder(o)));
+  el.innerHTML='<div class="q-grid">'+qOrders.map((o,idx)=>{
     const assignedVouchers=allV.filter(v=>v.usedBy===o.order_id);
     const hasV=assignedVouchers.length>0;
     const isPending=o.status==='Pending';
     const isProcessing=o.status==='Processing';
     const statusClass=isPending?'is-pending':isProcessing?'is-processing':'is-paid';
 
-    // Gunakan preview yang sudah di-fetch di atas
-    const preview=previews[_idx];
+    const preview=!hasV?previews[idx]:null;
     const canAutoFill=preview&&preview.vouchers.length>0;
     const stockInfo=!hasV&&preview?(
       preview.exact?
@@ -1110,14 +1057,15 @@ async function markPaid(orderId){
   if(!o)return;
 
   // ── AUTO-ASSIGN VOUCHER ──
-  const alreadyAssigned=(await loadAllV()).filter(v=>v.usedBy===orderId);
+  const allVouchers=await loadAllV();
+  const alreadyAssigned=allVouchers.filter(v=>v.usedBy===orderId);
   let voucherCodes=alreadyAssigned.map(v=>v.code);
   let assignMsg='';
 
   if(!alreadyAssigned.length){
     const res=await getVouchersForOrder(o);
     if(res.vouchers.length>0){
-      markMultiVUsed(res.vouchers, orderId, res.game);
+      await markMultiVUsed(res.vouchers, orderId, res.game);
       voucherCodes=res.vouchers.map(v=>v.code);
       const detail=res.vouchers.map(v=>v.code+' ('+v.amt+'💎)').join(', ');
       assignMsg=`\nVoucher  : ${detail}`;
@@ -1143,7 +1091,7 @@ async function markPaid(orderId){
   if(sb){ try{ const{error}=await sb.from('orders').update(patch).eq('order_id',orderId); sbOk=!error; if(error)console.error('Supabase markPaid:',error.message); }catch(e){ console.error('Supabase markPaid exception:',e); } }
   if(!sb||sbOk){ toast(`✅ Order ${orderId} dikonfirmasi & selesai!`,'ok'); }
   else { toast(`⚠️ Tersimpan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
-  const s=loadSettings();
+  const s=await loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const oo=allOrders.find(x=>x.order_id===orderId);
     if(oo) sendTG(`✅ *ORDER SELESAI — ONE TopUp*\n━━━━━━━━━━━━━━━━\nOrder ID : *${oo.order_id}*\nGame     : ${oo.game||'—'}\nNominal  : *${fmtN(oo.amt||0)} ${oo.unit||'Diamond'}* 💎\nID Game  : *${oo.id_game||'—'}*${assignMsg}\n━━━━━━━━━━━━━━━━\n_Diamond sudah masuk. Terima kasih!_ 🎉`);
@@ -1164,7 +1112,7 @@ async function markDone(orderId){
   if(sb){ try{ const{error}=await sb.from('orders').update(patch).eq('order_id',orderId); sbOk=!error; if(error)console.error('Supabase markDone:',error.message); }catch(e){ console.error('Supabase markDone exception:',e); } }
   if(!sb||sbOk){ toast(`✅ Order ${orderId} selesai!`,'ok'); }
   else { toast(`⚠️ Tersimpan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
-  const s=loadSettings();
+  const s=await loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const o=allOrders.find(x=>x.order_id===orderId);
     if(o) sendTG(`✅ *DIAMOND TERKIRIM — ONE TopUp*\n━━━━━━━━━━━━━━━━\nOrder ID : *${o.order_id}*\nGame     : ${o.game||'—'}\nNominal  : *${fmtN(o.amt||0)} ${o.unit||'Diamond'}* 💎\nID Game  : *${o.id_game||'—'}*\nVoucher  : \`${o.voucher_code||'—'}\`\n━━━━━━━━━━━━━━━━\n_Diamond sudah masuk. Terima kasih!_ 🎉`);
@@ -1184,7 +1132,7 @@ async function cancelOrder(orderId){
   if(sb){ try{ const{error}=await sb.from('orders').update(patch).eq('order_id',orderId); sbOk=!error; }catch(e){} }
   if(!sb||sbOk){ toast(`🚫 Order ${orderId} dibatalkan.`,'err'); }
   else { toast(`⚠️ Dibatalkan lokal, gagal sync ke DB. Cek koneksi!`,'err'); }
-  const s=loadSettings();
+  const s=await loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const o=allOrders.find(x=>x.order_id===orderId);
     if(o) sendTG(`🚫 *ORDER DIBATALKAN — ONE TopUp*\n━━━━━━━━━━━━━━━━\nOrder ID : *${o.order_id}*\nGame     : ${o.game||'—'}\nNominal  : ${fmtN(o.amt||0)} ${o.unit||'Diamond'} 💎\nID Game  : ${o.id_game||'—'}\n━━━━━━━━━━━━━━━━\n_Order ini telah dibatalkan oleh admin._`);
@@ -1198,7 +1146,7 @@ async function autoAssignAll(){
   for(const o of paid){
     const res=await getVouchersForOrder(o);
     if(!res.vouchers.length){ noStock++; continue; }
-    markMultiVUsed(res.vouchers, o.order_id, res.game);
+    await markMultiVUsed(res.vouchers, o.order_id, res.game);
     const codes=res.vouchers.map(v=>v.code).join(',');
     await updateOrder(o.order_id,{status:'Processing',voucher_code:codes}); assigned++;
   }
@@ -1240,9 +1188,9 @@ async function confirmDone(){
   if(!code||code.length<8){ toast('Masukkan kode voucher dulu!','err'); return; }
   if(!assigningId)return;
   showLoading('Menyimpan...');
-  markVUsed(code,assigningId);
+  await markVUsed(code,assigningId);
   await updateOrder(assigningId,{status:'Completed',voucher_code:code,dunia_games_url:CFG.duniaGamesBase+code});
-  const s=loadSettings();
+  const s=await loadSettings();
   if(s.notif&&CFG.tgBotToken){
     const o=allOrders.find(x=>x.order_id===assigningId);
     if(o) await sendTG(`✅ *DIAMOND TERKIRIM — ONE TopUp*\n━━━━━━━━━━━━━━━━\nOrder ID : *${o.order_id}*\nGame     : ${o.game||'—'}\nNominal  : *${fmtN(o.amt||0)} ${o.unit||'Diamond'}* 💎\nID Game  : *${o.id_game||'—'}*\nVoucher  : \`${code}\`\n━━━━━━━━━━━━━━━━\n_Diamond sudah masuk. Terima kasih!_ 🎉`);
@@ -1289,7 +1237,7 @@ async function manualProcess(){
   const orderId=document.getElementById('man-order').value.trim().toUpperCase();
   let code=document.getElementById('man-voucher').value.trim().toUpperCase();
   if(!orderId){ toast('Masukkan Order ID dulu!','err'); return; }
-  if(!code){ const o=allOrders.find(x=>x.order_id===orderId); const{voucher:v}=o?await getVoucherFor(o):{voucher:null}; if(!v){ toast('Stok voucher habis!','err'); return; } code=v.code; }
+  if(!code){ const o=allOrders.find(x=>x.order_id===orderId); const{voucher:v}=o?(await getVoucherFor(o)):{voucher:null}; if(!v){ toast('Stok voucher habis!','err'); return; } code=v.code; }
   window.open(CFG.duniaGamesBase+code,'_blank');
   if(!allOrders.find(o=>o.order_id===orderId)) allOrders.unshift({order_id:orderId,game:'—',amt:0,unit:'Diamond',id_game:'—',status:'Paid',price:0,created_at:new Date().toISOString()});
   openAssignModal(orderId);
@@ -1382,44 +1330,22 @@ function hideLoading(){ document.getElementById('loading').classList.remove('sho
 // ════════════════════════════════════════════════════════════
 // REALTIME (Supabase)
 // ════════════════════════════════════════════════════════════
-async function setupRealtime(){
+function setupRealtime(){
   if(!sb)return;
   try{
-    sb.channel('admin-sync')
-      // ── Orders: insert baru
+    sb.channel('orders-ch')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'orders'},async(p)=>{
-        allOrders.unshift(p.new); renderOrders(); await renderVouchers();
+        allOrders.unshift(p.new); renderOrders(); renderVouchers();
         const o=p.new; toast(`🔔 Order baru: ${o.game} ${fmtN(o.amt||0)}💎`,'ok');
-        const s=loadSettings();
-        if(s.autoAssign){
-          const{voucher:v,game:g}=await getVoucherFor(o);
-          if(v&&o.status==='Paid'){ await markVUsed(v.code,o.order_id,g); await updateOrder(o.order_id,{status:'Processing',voucher_code:v.code}); renderOrders(); }
-        }
+        const s=await loadSettings();
+        if(s.autoAssign){ const{voucher:v,game:g}=await getVoucherFor(o); if(v&&o.status==='Paid'){ await markVUsed(v.code,o.order_id,g); await updateOrder(o.order_id,{status:'Processing',voucher_code:v.code}); renderOrders(); } }
       })
-      // ── Orders: update (dari device lain)
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders'},(p)=>{
         const i=allOrders.findIndex(x=>x.order_id===p.new.order_id);
         if(i!==-1)allOrders[i]=p.new; else allOrders.unshift(p.new); renderOrders();
       })
-      // ── Packages: berubah dari device lain → reload otomatis
-      .on('postgres_changes',{event:'*',schema:'public',table:'packages'},async()=>{
-        _activePkgsCache.ff=null; _activePkgsCache.ml=null;
-        await Promise.all([getActivePkgs('ff'),getActivePkgs('ml')]);
-        renderPkgList();
-        toast('🔄 Paket diperbarui dari device lain','ok');
-      })
-      // ── Redeem codes: berubah dari device lain → reload otomatis
-      .on('postgres_changes',{event:'*',schema:'public',table:'redeem_codes'},async()=>{
-        _vCache.ff=null; _vCache.ml=null;
-        await renderVouchers();
-        toast('🔄 Stok voucher diperbarui dari device lain','ok');
-      })
-      .subscribe((status)=>{
-        if(status==='SUBSCRIBED'){
-          console.log('✅ Realtime sync aktif — semua device tersinkron');
-        }
-      });
-  }catch(e){ console.error('Realtime error',e); }
+      .subscribe();
+  }catch(e){}
 }
 
 
@@ -1682,7 +1608,7 @@ async function resetPkgToDefault(){
 // INIT
 // ════════════════════════════════════════════════════════════
 async function init(){
-  const s=loadSettings();
+  const s=await loadSettings();
   document.getElementById('tog-auto').checked=s.autoAssign;
   // Pre-load paket dari Supabase saat start
   await Promise.all([getActivePkgs('ff'), getActivePkgs('ml')]);
@@ -1692,6 +1618,25 @@ async function init(){
   await refreshOrders();
   if(s.autoRefresh!==false)startAR();
   setupRealtime();
+  setupVoucherRealtime();
+}
+
+// Realtime listener untuk tabel vouchers — agar perubahan dari device lain langsung terlihat
+function setupVoucherRealtime(){
+  if(!sb)return;
+  try{
+    sb.channel('vouchers-ch')
+      .on('postgres_changes',{event:'*',schema:'public',table:'vouchers'},()=>{
+        // Invalidate cache, lalu re-render
+        invalidateVCache();
+        renderVouchers();
+        renderOrders();
+      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'admin_settings'},async()=>{
+        _settingsCache=null; // invalidate settings cache
+      })
+      .subscribe();
+  }catch(e){}
 }
 
 document.getElementById('v-input').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.ctrlKey)addVouchers(); });

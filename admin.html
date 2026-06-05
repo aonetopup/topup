@@ -1371,28 +1371,51 @@ function hideLoading(){ document.getElementById('loading').classList.remove('sho
 // ════════════════════════════════════════════════════════════
 // REALTIME (Supabase)
 // ════════════════════════════════════════════════════════════
+function setRTStatus(state){
+  const el=document.getElementById('db-status');
+  if(!el)return;
+  if(state==='connected'){
+    el.textContent='🟢 RT'; el.style.background='rgba(16,185,129,0.12)';
+    el.style.color='var(--green2)'; el.style.borderColor='rgba(16,185,129,0.25)';
+  } else if(state==='connecting'){
+    el.textContent='🟡 RT'; el.style.background='rgba(245,158,11,0.12)';
+    el.style.color='var(--gold)'; el.style.borderColor='rgba(245,158,11,0.25)';
+  } else {
+    el.textContent='🔴 RT'; el.style.background='rgba(239,68,68,0.12)';
+    el.style.color='var(--red2)'; el.style.borderColor='rgba(239,68,68,0.25)';
+  }
+}
+
 function setupRealtime(){
   if(!sb)return;
   try{
-    sb.channel('orders-ch')
+    sb.channel('onetopup-main')
       .on('postgres_changes',{event:'INSERT',schema:'public',table:'orders'},async(p)=>{
-        allOrders.unshift(p.new); renderOrders(); renderVouchers();
+        allOrders.unshift(p.new); await renderOrders(); await renderVouchers();
         const o=p.new; toast(`🔔 Order baru: ${o.game} ${fmtN(o.amt||0)}💎`,'ok');
         const s=await loadSettings();
-        if(s.autoAssign){ const{voucher:v,game:g}=await getVoucherFor(o); if(v&&o.status==='Paid'){ await markVUsed(v.code,o.order_id,g); await updateOrder(o.order_id,{status:'Processing',voucher_code:v.code}); renderOrders(); } }
+        if(s.autoAssign){ const{voucher:v,game:g}=await getVoucherFor(o); if(v&&o.status==='Paid'){ await markVUsed(v.code,o.order_id,g); await updateOrder(o.order_id,{status:'Processing',voucher_code:v.code}); await renderOrders(); } }
       })
       .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders'},async(p)=>{
         const i=allOrders.findIndex(x=>x.order_id===p.new.order_id);
         if(i!==-1) allOrders[i]=p.new; else allOrders.unshift(p.new);
         await renderOrders();
-        // Kalau order selesai/dibatalkan, invalidate voucher cache supaya stok ter-update
         if(p.new.status==='Completed'||p.new.status==='Cancelled'){
-          invalidateVCache();
-          await renderVouchers();
+          invalidateVCache(); await renderVouchers();
         }
       })
-      .subscribe();
-  }catch(e){}
+      .on('postgres_changes',{event:'*',schema:'public',table:'vouchers'},async()=>{
+        invalidateVCache(); await renderVouchers(); await renderOrders();
+      })
+      .on('postgres_changes',{event:'*',schema:'public',table:'admin_settings'},async()=>{
+        _settingsCache=null;
+      })
+      .subscribe((status)=>{
+        if(status==='SUBSCRIBED') setRTStatus('connected');
+        else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'||status==='CLOSED') setRTStatus('disconnected');
+        else setRTStatus('connecting');
+      });
+  }catch(e){ setRTStatus('disconnected'); }
 }
 
 
@@ -1665,27 +1688,9 @@ async function init(){
   await refreshOrders();
   if(s.autoRefresh!==false)startAR();
   setupRealtime();
-  setupVoucherRealtime();
 }
 
 // Realtime listener untuk tabel vouchers — agar perubahan dari device lain langsung terlihat
-function setupVoucherRealtime(){
-  if(!sb)return;
-  try{
-    sb.channel('vouchers-ch')
-      .on('postgres_changes',{event:'*',schema:'public',table:'vouchers'},()=>{
-        // Invalidate cache, lalu re-render
-        invalidateVCache();
-        renderVouchers();
-        renderOrders();
-      })
-      .on('postgres_changes',{event:'*',schema:'public',table:'admin_settings'},async()=>{
-        _settingsCache=null; // invalidate settings cache
-      })
-      .subscribe();
-  }catch(e){}
-}
-
 document.getElementById('v-input').addEventListener('keydown',e=>{ if(e.key==='Enter'&&e.ctrlKey)addVouchers(); });
 checkAuth();
 </script>

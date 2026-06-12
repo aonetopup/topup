@@ -524,6 +524,7 @@ function switchGame(g) {
   const bTag   = document.getElementById('banner-tag');   if(bTag)   bTag.textContent   = gd.icon + ' ' + gd.unit;
   const pkgLbl = document.getElementById('pkg-label');    if(pkgLbl) pkgLbl.textContent  = 'Pilih Nominal ' + gd.unit;
   renderPkgs(); gotoStep(1);
+  renderPromos(g); // filter promo sesuai game
 }
 
 function renderPkgs() {
@@ -1069,39 +1070,106 @@ function hideLoading() {
 // ────────────────────────────────────────────────────────────
 // PROMO SYSTEM
 // ────────────────────────────────────────────────────────────
-function renderPromos() {
-  const promos = JSON.parse(localStorage.getItem('onetopup_promos') || '[]')
-    .filter(p => p.active && (!p.expDate || new Date(p.expDate) >= new Date()));
+const PROMO_EMOJI = { flash:'⚡', disc:'🏷️', bonus:'🎁', info:'📢' };
+const PROMO_LABEL = { flash:'Flash Sale', disc:'Diskon', bonus:'Bonus', info:'Info' };
+
+function buildPromoCard(p) {
+  const hasLink  = p.linkGame && p.linkPkg;
+  const gd       = hasLink ? GAMES[p.linkGame] : null;
+  const pkg      = hasLink && gd ? gd.pkgs.find(x => x.id === p.linkPkg) : null;
+  const onclick  = hasLink ? `promoCheckout('${p.linkGame}','${p.linkPkg}')` : '';
+  const expStr   = p.expDate
+    ? `<div class="promo-card-exp">⏳ Berlaku s/d ${new Date(p.expDate).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}</div>`
+    : '';
+
+  // Pricelist: tampilkan semua paket game jika ada linkGame (max 4 teratas)
+  let pricelistHtml = '';
+  if (hasLink && gd && gd.pkgs.length) {
+    const pkgList = gd.pkgs.slice(0, 4);
+    pricelistHtml = `
+      <div class="promo-pricelist">
+        <div class="promo-pricelist-title">💎 Daftar Harga ${gd.name}</div>
+        ${pkgList.map(pk => {
+          const disc = pk.disc || 0;
+          const origPrice = disc ? Math.round(pk.price / (1 - disc/100)) : 0;
+          const isSelected = pk.id === p.linkPkg;
+          return `<div class="promo-price-row" style="${isSelected?'background:rgba(255,255,255,0.1);border-radius:6px;padding:4px 6px;':''}">
+            <div class="promo-price-dm">${fmtN(pk.amt)}<span>${gd.unit}${pk.bonus?' +bonus':''}</span></div>
+            <div style="display:flex;align-items:center;gap:2px">
+              ${disc ? `<span class="promo-price-orig">Rp ${parseInt(origPrice).toLocaleString('id-ID')}</span>` : ''}
+              <span class="promo-price-val">Rp ${parseInt(pk.price).toLocaleString('id-ID')}</span>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>`;
+  }
+
+  const ctaBtn = hasLink
+    ? `<div class="promo-cta-btn" onclick="${onclick}">🛒 Checkout Sekarang →</div>`
+    : '';
+
+  return `<div class="promo-card type-${p.type}${hasLink?' clickable':''}" ${hasLink&&!pkg?`onclick="${onclick}"`:''}">
+    <div class="promo-card-deco"></div>
+    <div class="promo-card-deco2"></div>
+    <div class="promo-card-emoji">${PROMO_EMOJI[p.type]||'📢'}</div>
+    <div class="promo-card-body">
+      <div class="promo-type-tag">${PROMO_EMOJI[p.type]||'📢'} ${PROMO_LABEL[p.type]||'Promo'}</div>
+      <div class="promo-card-title">${p.title}</div>
+      <div class="promo-card-desc">${p.desc}</div>
+      ${expStr}
+    </div>
+    ${pricelistHtml}
+    ${ctaBtn}
+  </div>`;
+}
+
+function renderPromos(filterGame) {
+  // Render di order view (filtered by game)
   const section = document.getElementById('promo-section');
   const scroll  = document.getElementById('promo-scroll');
-  if (!promos.length) { section.style.display = 'none'; return; }
-  section.style.display = 'block';
-  const emoji = { flash:'⚡', disc:'🏷️', bonus:'🎁', info:'📢' };
-  const label = { flash:'Flash Sale', disc:'Diskon', bonus:'Bonus', info:'Info' };
-  scroll.innerHTML = promos.map(p => {
-    const hasLink = p.linkGame && p.linkPkg;
-    const onclick = hasLink ? `onclick="promoCheckout('${p.linkGame}','${p.linkPkg}')"` : '';
-    return `<div class="promo-card type-${p.type}${hasLink?' clickable':''}" ${onclick}>
-      <div class="promo-deco">${emoji[p.type]||'📢'}</div>
-      <div class="promo-badge">${emoji[p.type]||'📢'} ${label[p.type]||'Promo'}</div>
-      <div class="promo-title">${p.title}</div>
-      <div class="promo-desc">${p.desc}</div>
-      ${p.expDate ? `<div class="promo-exp">⏳ Berlaku s/d ${new Date(p.expDate).toLocaleDateString('id-ID',{day:'numeric',month:'long',year:'numeric'})}</div>` : ''}
-      ${hasLink ? `<div class="promo-cta">🛒 Checkout Sekarang →</div>` : ''}
-    </div>`;
-  }).join('');
+  if (!section || !scroll) return;
+
+  const allPromos = JSON.parse(localStorage.getItem('onetopup_promos') || '[]')
+    .filter(p => p.active && (!p.expDate || new Date(p.expDate) >= new Date()));
+
+  // filter: tampilkan promo yang sesuai game ATAU promo tanpa linkGame
+  const promos = filterGame
+    ? allPromos.filter(p => !p.linkGame || p.linkGame === filterGame)
+    : allPromos;
+
+  if (!promos.length) { section.style.display = 'none'; }
+  else {
+    section.style.display = 'block';
+    scroll.innerHTML = promos.map(p => buildPromoCard(p)).join('');
+  }
+
+  // Render di landing page (semua promo aktif)
+  const landingSec  = document.getElementById('promo-landing-section');
+  const landingScrl = document.getElementById('promo-scroll-landing');
+  if (landingSec && landingScrl) {
+    if (!allPromos.length) { landingSec.style.display = 'none'; }
+    else {
+      landingSec.style.display = 'block';
+      landingScrl.innerHTML = allPromos.map(p => buildPromoCard(p)).join('');
+    }
+  }
 }
 
 function promoCheckout(game, pkgId) {
+  // Tampilkan order view dulu
+  const landing = document.getElementById('view-landing');
+  const order   = document.getElementById('view-order');
+  if (landing) landing.style.display = 'none';
+  if (order)   order.style.display   = 'block';
+  window.scrollTo({top:0, behavior:'smooth'});
+
   switchGame(game);
-  const gd = GAMES[game];
-  const pkg = gd.pkgs.find(p => p.id === pkgId);
-  if (!pkg) return;
   setTimeout(() => {
-    pickPkg(pkgId);
-    const ob2 = document.getElementById('view-order'); if(ob2) ob2.scrollIntoView({behavior:'smooth',block:'start'});
-    setTimeout(() => gotoStep(2), 400);
-  }, 100);
+    if (pkgId) {
+      pickPkg(pkgId);
+      setTimeout(() => gotoStep(2), 350);
+    }
+  }, 120);
 }
 
 // ────────────────────────────────────────────────────────────
@@ -1121,6 +1189,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ────────────────────────────────────────────────────────────
 // INIT
 // ────────────────────────────────────────────────────────────
+// Init on DOMContentLoaded
 // Init on DOMContentLoaded
 if(document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', () => { renderPkgs(); renderPromos(); });

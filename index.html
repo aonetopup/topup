@@ -1077,8 +1077,7 @@ function renderPkgsV3(){
     if(bonusNum>0){
       amtHtml=`
         <div class="pkg-amt-wrap">
-          <div class="pkg-amt-main">${FN(baseAmt)} <span style="font-size:1rem;color:var(--green)">+${FN(bonusNum)}</span></div>
-          <div class="pkg-bonus-lbl">++ ${FN(bonusNum)} Bonus ${gd.unit}</div>
+          <div class="pkg-amt-main">${FN(baseAmt)} <span style="color:var(--green)">+${FN(bonusNum)}</span></div>
         </div>`;
     } else {
       amtHtml=`<div class="pkg-amt-wrap"><div class="pkg-amt-main">${FN(p.amt)}</div></div>`;

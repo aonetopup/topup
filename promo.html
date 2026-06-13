@@ -207,6 +207,34 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
           </div>
         </div>
 
+        <!-- KATEGORI TAB (tampil di toko sebagai tab filter) -->
+        <div class="field">
+          <div class="field-label">Kategori Tab di Toko <span style="color:var(--red)">*</span></div>
+          <select class="field-select" id="f-cat">
+            <option value="flash_sale">⚡ Flash Sale</option>
+            <option value="event">🎉 Event</option>
+            <option value="tebus_murah">🏷️ Tebus Murah</option>
+            <option value="diamond">💎 Diamond</option>
+            <option value="pass">🎫 Pass</option>
+            <option value="bonus">🎁 Bonus Diamond</option>
+          </select>
+          <div class="field-hint">Promo akan muncul di tab ini di halaman pilih paket</div>
+        </div>
+
+        <!-- BADGE LABEL KHUSUS -->
+        <div class="field">
+          <div class="field-label">Label Badge (opsional)</div>
+          <input class="field-input" id="f-badge" placeholder="Contoh: Terjual > 500 · Kuota Terbatas · Event Spesial">
+          <div class="field-hint">Muncul di bagian bawah kartu promo. Kosongkan jika tidak perlu.</div>
+        </div>
+
+        <!-- BONUS INFO -->
+        <div class="field">
+          <div class="field-label">Info Bonus (opsional)</div>
+          <textarea class="field-textarea" id="f-bonus-info" rows="2" placeholder="Contoh:&#10;✓ Bonus 3 GB Kuota&#10;✓ +50 Diamond Ekstra"></textarea>
+          <div class="field-hint">Muncul sebagai checklist di kartu. Pisahkan tiap baris dengan Enter.</div>
+        </div>
+
         <!-- JUDUL & DESKRIPSI -->
         <div class="field">
           <div class="field-label">Judul <span style="color:var(--red)">*</span></div>
@@ -278,12 +306,15 @@ body{font-family:'Plus Jakarta Sans',sans-serif;background:var(--bg);color:var(-
     <div class="card">
       <div class="card-head"><div class="card-title">💡 Panduan Promo</div></div>
       <div class="card-body" style="font-size:0.78rem;color:var(--text2);line-height:1.9;">
-        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Flash Sale</strong> — Untuk promo terbatas waktu (warna merah-oranye)</div>
-        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Diskon</strong> — Untuk potongan harga (warna biru)</div>
-        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Bonus</strong> — Untuk bonus diamond ekstra (warna hijau)</div>
-        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Info</strong> — Untuk pengumuman/informasi (warna ungu)</div>
-        <div style="margin-bottom:8px">📌 Promo dengan <strong style="color:var(--text)">link paket</strong> akan bisa diklik customer untuk langsung checkout</div>
-        <div>📌 Promo yang sudah lewat tanggal kadaluarsa otomatis <strong style="color:var(--text)">tidak tampil</strong> di toko</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Flash Sale</strong> — Promo terbatas waktu (warna merah-oranye)</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Diskon</strong> — Potongan harga (warna biru)</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Bonus</strong> — Bonus diamond ekstra (warna hijau)</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Info</strong> — Pengumuman/informasi (warna ungu)</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Kategori Tab</strong> — Menentukan tab filter di toko (Flash Sale, Event, dll)</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Label Badge</strong> — Muncul di bawah kartu, contoh: "Terjual > 500" atau "Kuota Terbatas"</div>
+        <div style="margin-bottom:8px">📌 <strong style="color:var(--text)">Info Bonus</strong> — Checklist keuntungan, tiap baris = 1 item (✓ Bonus 3GB, dst)</div>
+        <div style="margin-bottom:8px">📌 Promo dengan <strong style="color:var(--text)">Link Paket</strong> bisa diklik customer untuk langsung checkout</div>
+        <div>📌 Promo melewati tanggal kadaluarsa otomatis <strong style="color:var(--text)">tidak tampil</strong> di toko</div>
       </div>
     </div>
   </div>
@@ -446,16 +477,22 @@ function addPromo() {
   if (!title) { toast('Judul promo wajib diisi!','err'); return; }
   if (!desc)  { toast('Deskripsi promo wajib diisi!','err'); return; }
 
+  const bonusRaw = document.getElementById('f-bonus-info').value.trim();
+  const bonusLines = bonusRaw ? bonusRaw.split('\n').map(l=>l.trim()).filter(Boolean) : [];
+
   const promo = {
-    id:       Date.now().toString(),
-    type:     currentType,
+    id:        Date.now().toString(),
+    type:      currentType,
+    category:  document.getElementById('f-cat').value || 'flash_sale',
     title,
     desc,
-    expDate:  document.getElementById('f-exp').value || null,
-    linkGame: document.getElementById('f-game').value || null,
-    linkPkg:  document.getElementById('f-pkg').value  || null,
-    active:   document.getElementById('f-active').checked,
-    createdAt:new Date().toISOString(),
+    badge:     document.getElementById('f-badge').value.trim() || null,
+    bonusInfo: bonusLines.length ? bonusLines : null,
+    expDate:   document.getElementById('f-exp').value || null,
+    linkGame:  document.getElementById('f-game').value || null,
+    linkPkg:   document.getElementById('f-pkg').value  || null,
+    active:    document.getElementById('f-active').checked,
+    createdAt: new Date().toISOString(),
   };
 
   const promos = loadPromos();
@@ -464,12 +501,14 @@ function addPromo() {
   renderList();
 
   // Reset form
-  document.getElementById('f-title').value = '';
-  document.getElementById('f-desc').value  = '';
-  document.getElementById('f-exp').value   = '';
-  document.getElementById('f-game').value  = '';
-  document.getElementById('f-pkg').value   = '';
-  document.getElementById('f-active').checked = true;
+  document.getElementById('f-title').value      = '';
+  document.getElementById('f-desc').value       = '';
+  document.getElementById('f-badge').value      = '';
+  document.getElementById('f-bonus-info').value = '';
+  document.getElementById('f-exp').value        = '';
+  document.getElementById('f-game').value       = '';
+  document.getElementById('f-pkg').value        = '';
+  document.getElementById('f-active').checked   = true;
   updatePreview();
   toast('✅ Promo berhasil ditambahkan!','success');
 }
@@ -507,14 +546,19 @@ function renderList() {
   document.getElementById('promo-list').innerHTML = promos.map(p => {
     const expired = p.expDate && new Date(p.expDate) < new Date();
     const statusBadge = expired ? '<span class="badge-off">Kadaluarsa</span>' : (p.active ? '<span class="badge-active">Aktif</span>' : '<span class="badge-off">Nonaktif</span>');
+    const catLabels = {flash_sale:'⚡ Flash Sale',event:'🎉 Event',tebus_murah:'🏷️ Tebus Murah',diamond:'💎 Diamond',pass:'🎫 Pass',bonus:'🎁 Bonus'};
+    const catStr = p.category ? ` &nbsp;|&nbsp; Tab: <strong>${catLabels[p.category]||p.category}</strong>` : '';
     return `<div class="promo-item">
       <div class="promo-item-color ${p.type}"></div>
       <div class="promo-item-body">
         <div class="promo-item-title">${EMOJI[p.type]} ${p.title} ${statusBadge}</div>
         <div class="promo-item-desc">${p.desc}</div>
+        ${p.badge ? `<div class="promo-item-meta" style="color:var(--gold)">🏷️ Badge: ${p.badge}</div>` : ''}
+        ${p.bonusInfo ? `<div class="promo-item-meta" style="color:var(--green2)">✓ ${p.bonusInfo.join(' · ')}</div>` : ''}
         <div class="promo-item-meta">
           ${p.expDate ? '⏳ s/d '+new Date(p.expDate).toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric'})+' &nbsp;|&nbsp; ' : ''}
           ${p.linkGame ? '🔗 '+p.linkGame.toUpperCase()+' → '+p.linkPkg : ''}
+          ${catStr}
           &nbsp;|&nbsp; ${new Date(p.createdAt).toLocaleDateString('id-ID')}
         </div>
       </div>
